@@ -182,6 +182,8 @@ export async function seed(db: Client, now = clubNow()) {
     });
   }
 
-  stmts.push({ sql: "INSERT INTO meta (key,value) VALUES ('seeded_on',?)", args: [now.date] });
-  await db.batch(stmts, "write");
+  // Send in chunks: one giant request can exceed a hosted database's size limit.
+  for (let i = 0; i < stmts.length; i += 250) await db.batch(stmts.slice(i, i + 250), "write");
+  // Written last, so a half-finished seed is redone on the next visit.
+  await db.execute({ sql: "INSERT INTO meta (key,value) VALUES ('seeded_on',?)", args: [now.date] });
 }
