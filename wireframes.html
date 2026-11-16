@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RangeDay wireframes</title>
+<style>
+:root{--navy:#1B2A41;--navy2:#2E4057;--green:#5C8A5E;--greenl:#E6EFE6;--gl:#F2F4F7;--gm:#D9DEE5;--gt:#5F6B7A;--amber:#FFF1D6;--red:#B3261E;--redl:#F9DEDC}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1A1A1A;padding:28px}
+.row{display:flex;gap:30px;align-items:flex-start}
+.cap{font-size:13px;color:var(--gt);margin-top:10px;width:300px;line-height:1.35}
+.cap b{color:var(--navy)}
+.phone{width:300px;height:620px;border:10px solid #22252b;border-radius:34px;overflow:hidden;position:relative;background:#fff}
+.status{height:24px;font-size:11px;display:flex;justify-content:space-between;padding:5px 16px;color:#333}
+.bar{background:var(--navy);color:#fff;padding:12px 16px}
+.bar h1{font-size:17px}.bar p{font-size:11px;color:#C9D3E0;margin-top:2px}
+.pad{padding:12px 14px}
+.chip{display:inline-block;font-size:11px;padding:5px 10px;border-radius:14px;border:1px solid var(--gm);margin:0 4px 6px 0;color:var(--navy2)}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.lbl{font-size:10px;font-weight:bold;letter-spacing:.06em;color:var(--gt);text-transform:uppercase;margin:10px 0 6px}
+.card{border:1px solid var(--gm);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.card h3{font-size:13px;color:var(--navy)}.card p{font-size:11px;color:var(--gt);margin-top:3px}
+.btn{display:block;text-align:center;background:var(--green);color:#fff;font-weight:bold;font-size:13px;border-radius:10px;padding:11px;margin-top:10px}
+.btn.sec{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.tabs{position:absolute;bottom:0;left:0;right:0;height:52px;border-top:1px solid var(--gm);display:flex;background:#fff}
+.tabs div{flex:1;text-align:center;font-size:10px;color:var(--gt);padding-top:9px}
+.tabs div i{display:block;width:18px;height:18px;border-radius:5px;background:var(--gm);margin:0 auto 3px}
+.tabs .on{color:var(--navy);font-weight:bold}.tabs .on i{background:var(--navy)}
+.days{display:flex;gap:5px;margin-bottom:8px}
+.days div{flex:1;text-align:center;border:1px solid var(--gm);border-radius:8px;padding:5px 0;font-size:10px;color:var(--gt)}
+.days div b{display:block;font-size:14px;color:var(--navy)}
+.days .on{background:var(--navy);border-color:var(--navy);color:#C9D3E0}.days .on b{color:#fff}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.slot{border:1px solid var(--gm);border-radius:8px;text-align:center;font-size:11px;padding:8px 0;color:var(--navy)}
+.slot small{display:block;font-size:9px;color:var(--gt)}
+.slot.full{background:var(--gl);color:#aab;text-decoration:line-through}
+.slot.sel{background:var(--green);color:#fff;border-color:var(--green)}.slot.sel small{color:#e6efe6}
+.slot.few{border-color:#d9a640}
+.search{border:1px solid var(--gm);border-radius:10px;padding:9px 12px;font-size:12px;color:#99a}
+.item{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--gl);padding:9px 0}
+.thumb{width:44px;height:44px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--gl),var(--gl) 6px,#e7eaef 6px,#e7eaef 12px);flex:none}
+.item h4{font-size:12px;color:var(--navy)}.item p{font-size:10px;color:var(--gt)}
+.pill{font-size:10px;font-weight:bold;border-radius:10px;padding:3px 8px;margin-left:auto;white-space:nowrap}
+.in{background:var(--greenl);color:var(--green)}.low{background:var(--amber);color:#8a5a00}.out{background:var(--redl);color:var(--red)}
+.note{font-size:10px;color:var(--gt);background:var(--gl);border-radius:8px;padding:8px;margin-top:8px}
+.ann{position:absolute;background:#FFE58A;color:#3d3300;font-size:10px;font-weight:bold;border-radius:50%;width:20px;height:20px;line-height:20px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+/* staff console */
+.desk{width:1010px;border:1px solid var(--gm);border-radius:10px;overflow:hidden}
+.desk .top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.desk .top h1{font-size:16px}.desk .top span{font-size:11px;color:#C9D3E0}
+.kpis{display:flex;gap:10px;padding:12px 16px;background:var(--gl)}
+.kpi{flex:1;background:#fff;border-top:3px solid var(--green);padding:8px 10px}
+.kpi small{font-size:9px;font-weight:bold;color:var(--gt);letter-spacing:.05em}.kpi b{display:block;font-size:20px;color:var(--navy)}
+.grid{display:flex;gap:12px;padding:12px 16px}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th{background:var(--navy2);color:#fff;text-align:left;padding:6px;font-size:10px}
+td{border-bottom:1px solid var(--gl);padding:6px;color:#333}
+.side{width:260px;flex:none}
+.tag{font-size:9px;font-weight:bold;padding:2px 6px;border-radius:8px}
+</style></head><body>
+<div class="row" id="member">
+ <div>
+  <div class="phone">
+   <div class="status"><span>9:41</span><span>RangeDay</span></div>
+   <div class="bar"><h1>Good evening, Sam</h1><p>Cedar Ridge Sporting Club</p></div>
+   <div class="pad">
+    <div class="lbl">Your next booking</div>
+    <div class="card" style="border-color:var(--green);background:var(--greenl)"><h3>5-Stand, Field 2 · Sat 9:00 am</h3><p>2 members, 1 guest (waiver signed)</p></div>
+    <div class="lbl">Book something</div>
+    <div class="card"><h3>Sporting clays course</h3><p>14 open slots this weekend</p></div>
+    <div class="card"><h3>Trap and skeet fields</h3><p>Open today until 4:30 pm</p></div>
+    <div class="card"><h3>Lessons</h3><p>3 instructors available this week</p></div>
+    <div class="note">⚠ Weather alert: high winds Sunday. Bookings after 1 pm may close. We'll text you.</div>
+   </div>
+   <div class="tabs"><div class="on"><i></i>Home</div><div><i></i>Book</div><div><i></i>Pro Shop</div><div><i></i>Guests</div><div><i></i>Account</div></div>
+   <span class="ann" style="top:118px;right:12px">1</span><span class="ann" style="top:372px;right:6px">2</span>
+  </div>
+  <p class="cap"><b>1. Home.</b> (1) Next booking first: the most common reason members call. (2) Closure alert (F20) reuses the reminder service (F05).</p>
+ </div>
+ <div>
+  <div class="phone">
+   <div class="status"><span>9:41</span><span>RangeDay</span></div>
+   <div class="bar"><h1>Book: Sporting clays</h1><p>Pick a day and an open time</p></div>
+   <div class="pad">
+    <div><span class="chip on">Clays course</span><span class="chip">5-Stand</span><span class="chip">Trap</span><span class="chip">Skeet</span></div>
+    <div class="days"><div>Thu<b>19</b></div><div>Fri<b>20</b></div><div class="on">Sat<b>21</b></div><div>Sun<b>22</b></div><div>Mon<b>23</b></div></div>
+    <div class="slots">
+     <div class="slot full">8:00<small>Full</small></div><div class="slot full">8:30<small>Full</small></div><div class="slot few">9:00<small>1 left</small></div>
+     <div class="slot sel">9:30<small>Selected</small></div><div class="slot">10:00<small>Open</small></div><div class="slot">10:30<small>Open</small></div>
+     <div class="slot few">11:00<small>2 left</small></div><div class="slot">11:30<small>Open</small></div><div class="slot">12:00<small>Open</small></div>
+    </div>
+    <div class="lbl">Party</div>
+    <div class="card"><h3>You + 1 guest</h3><p>Add a guest: they get a waiver link by text</p></div>
+    <div class="btn">Confirm 9:30 am booking</div>
+    <div class="note">Full slot? Join the waitlist (Q3). Free cancellation until 6 pm Friday.</div>
+   </div>
+   <div class="tabs"><div><i></i>Home</div><div class="on"><i></i>Book</div><div><i></i>Pro Shop</div><div><i></i>Guests</div><div><i></i>Account</div></div>
+   <span class="ann" style="top:206px;right:12px">3</span><span class="ann" style="top:412px;right:12px">4</span>
+  </div>
+  <p class="cap"><b>2. Book a slot.</b> (3) Real-time availability (F02), with scarcity shown before the member commits. (4) Guest pre-registration hands off to e-waiver (F09, Q2).</p>
+ </div>
+ <div>
+  <div class="phone">
+   <div class="status"><span>9:41</span><span>RangeDay</span></div>
+   <div class="bar"><h1>Pro Shop</h1><p>Stock updated 12 minutes ago</p></div>
+   <div class="pad">
+    <div class="search">Search shells, vests, eye and ear protection</div>
+    <div style="margin-top:8px"><span class="chip on">Ammunition</span><span class="chip">Apparel</span><span class="chip">Accessories</span></div>
+    <div class="item"><div class="thumb"></div><div><h4>12 ga target load, 7.5 shot</h4><p>Box of 25</p></div><span class="pill in">In stock</span></div>
+    <div class="item"><div class="thumb"></div><div><h4>20 ga target load, 8 shot</h4><p>Box of 25</p></div><span class="pill low">Low: 4 left</span></div>
+    <div class="item"><div class="thumb"></div><div><h4>Shooting vest, mesh</h4><p>Size L</p></div><span class="pill out">Out · due Dec 2</span></div>
+    <div class="item"><div class="thumb"></div><div><h4>Shooting glasses, amber</h4><p>One size</p></div><span class="pill in">In stock</span></div>
+    <div class="btn sec">Reserve for pickup (coming in Q3)</div>
+    <div class="note">Stock is read from the club's inventory system. Members see a status, not exact counts above 10.</div>
+   </div>
+   <div class="tabs"><div><i></i>Home</div><div><i></i>Book</div><div class="on"><i></i>Pro Shop</div><div><i></i>Guests</div><div><i></i>Account</div></div>
+   <span class="ann" style="top:72px;right:12px">5</span><span class="ann" style="top:318px;left:4px">6</span>
+  </div>
+  <p class="cap"><b>3. Pro shop stock check.</b> (5) Freshness stamp builds trust in the data. (6) Status bands instead of raw counts; an out-of-stock item shows its next delivery date (F07).</p>
+ </div>
+</div>
+
+<div id="staff" style="margin-top:36px">
+ <div class="desk">
+  <div class="top"><h1>RangeDay Desk · Saturday 21 Nov</h1><span>Front desk console (F11) · tablet or desktop</span></div>
+  <div class="kpis">
+   <div class="kpi"><small>BOOKINGS TODAY</small><b>64</b></div>
+   <div class="kpi"><small>CHECKED IN</small><b>23</b></div>
+   <div class="kpi"><small>NO-SHOWS SO FAR</small><b>2</b></div>
+   <div class="kpi"><small>GUESTS, WAIVER PENDING</small><b style="color:#B3261E">3</b></div>
+   <div class="kpi"><small>PEAK UTILIZATION</small><b>82%</b></div>
+  </div>
+  <div class="grid">
+   <div style="flex:1">
+    <table>
+     <tr><th>Time</th><th>Member</th><th>Activity</th><th>Party</th><th>Source</th><th>Status</th><th></th></tr>
+     <tr><td>9:00</td><td>Member #1042</td><td>5-Stand, Field 2</td><td>2 + 1 guest</td><td>App</td><td><span class="tag in">Checked in</span></td><td>›</td></tr>
+     <tr><td>9:00</td><td>Member #0877</td><td>Clays course, Group A</td><td>4</td><td>Phone</td><td><span class="tag in">Checked in</span></td><td>›</td></tr>
+     <tr><td>9:30</td><td>Member #1210</td><td>Clays course, Group B</td><td>1 + 1 guest</td><td>App</td><td><span class="tag low">Waiver pending</span></td><td>›</td></tr>
+     <tr><td>9:30</td><td>Member #0533</td><td>Lesson, Instructor 2</td><td>1</td><td>App</td><td><span class="tag" style="background:#F2F4F7">Due</span></td><td>›</td></tr>
+     <tr><td>10:00</td><td>Member #0761</td><td>Trap, Field 1</td><td>3</td><td>Phone</td><td><span class="tag" style="background:#F2F4F7">Due</span></td><td>›</td></tr>
+     <tr><td>10:00</td><td>Member #0995</td><td>5-Stand, Field 1</td><td>2</td><td>App</td><td><span class="tag out">No-show?</span></td><td>›</td></tr>
+    </table>
+   </div>
+   <div class="side">
+    <div class="card"><h3>+ New phone booking</h3><p>Same flow members use, so the binder goes away and double-bookings can't happen.</p></div>
+    <div class="card"><h3>Waitlist (Q3)</h3><p>2 members waiting for 11:00 clays. Offer a released slot with one tap.</p></div>
+    <div class="card"><h3>Closure tools</h3><p>Close a field and alert every booked member (F20).</p></div>
+   </div>
+  </div>
+ </div>
+ <p class="cap" style="width:1010px"><b>4. Staff booking console.</b> Phone and app bookings land in one list, which removes the paper binder behind double-bookings (theme T3). Check-in status feeds the no-show metric. Member numbers stand in for names in this mock-up.</p>
+</div>
+</body></html>
