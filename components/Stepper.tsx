@@ -2,10 +2,10 @@
 import { useState } from "react";
 
 /** A +/− picker that sends its number with the form. Used for party size and item quantity. */
-export default function Stepper({ kind, max, name }: { kind: "party" | "qty"; max: number; name: string }) {
+export default function Stepper({ kind, max, name, hint: hintText }: { kind: "party" | "qty"; max: number; name: string; hint?: string }) {
   const [n, setN] = useState(1);
   const title = kind === "party" ? (n === 1 ? "Just you" : `You + ${n - 1} ${n === 2 ? "other" : "others"}`) : `Quantity: ${n}`;
-  const hint = kind === "party" ? `Up to ${max} shooters on this station` : `Up to ${max} per reservation`;
+  const hint = hintText ?? (kind === "party" ? `Up to ${max} people` : `Up to ${max} per reservation`);
   const what = kind === "party" ? "shooter" : "item";
   return (
     <div className="card card-row">

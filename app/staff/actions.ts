@@ -1,105 +1,92 @@
 "use server";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { getDb, resetDemoData } from "@/lib/db";
+import { back } from "@/lib/back";
+import { demoMode, resetDemoData } from "@/lib/db";
 import { requireStaff } from "@/lib/auth";
 import { cancelBooking, createBooking } from "@/lib/booking";
-import { createEvent, setAttendance, setEventCancelled, updateEvent, type EventInput } from "@/lib/staff";
+import { getCtx } from "@/lib/context";
+import { notify } from "@/lib/notify";
+import { setAttendance } from "@/lib/staff";
 import { staffUpdateReservation, type ReservationStatus } from "@/lib/shop";
-import { clubNow } from "@/lib/time";
+import { checkInVisit, recordWalkIn, undoCheckIn } from "@/lib/visits";
 
-function back(path: string, params: Record<string, string>) {
-  revalidatePath("/", "layout");
-  redirect(`${path}?${new URLSearchParams(params)}`);
-}
+// Every staff action starts with requireStaff(), so a member can't call these
+// even by crafting the request by hand.
 
 // ---- Today's bookings ----
 
 export async function attendanceAction(formData: FormData) {
   await requireStaff();
+  const { db, now } = await getCtx();
   const date = String(formData.get("date"));
   const to = String(formData.get("to")) as "checked_in" | "no_show" | "booked";
-  const r = await setAttendance(await getDb(), Number(formData.get("id")), to, clubNow());
+  const r = await setAttendance(db, Number(formData.get("id")), to, now);
   back("/staff", r.ok ? { date } : { date, error: r.error });
 }
 
 export async function staffCancelAction(formData: FormData) {
   const staff = await requireStaff();
+  const { db, cfg, now } = await getCtx();
   const date = String(formData.get("date"));
-  const r = await cancelBooking(await getDb(), Number(formData.get("id")), staff, clubNow());
-  back("/staff", r.ok ? { date, msg: "Booking cancelled. The slot is open again." } : { date, error: r.error });
+  const r = await cancelBooking(db, cfg, Number(formData.get("id")), staff, now);
+  back("/staff", r.ok ? { date, msg: "Booking cancelled. The time is open again." } : { date, error: r.error });
 }
 
 export async function phoneBookingAction(formData: FormData) {
   await requireStaff();
+  const { db, cfg, now } = await getCtx();
   const date = String(formData.get("date"));
+  const userId = Number(formData.get("member"));
   const r = await createBooking(
-    await getDb(),
-    {
-      userId: Number(formData.get("member")),
-      stationId: Number(formData.get("station")),
-      date,
-      time: String(formData.get("time")),
-      partySize: Number(formData.get("party")),
-      source: "phone",
-    },
-    clubNow(),
+    db,
+    cfg,
+    { userId, stationId: Number(formData.get("station")), date, time: String(formData.get("time")), partySize: Number(formData.get("party")), source: "phone" },
+    now,
   );
+  if (r.ok) await notify({ kind: "booking", userId, bookingId: r.id });
   back("/staff", r.ok ? { date, msg: "Phone booking added. It's in the same list as app bookings." } : { date, error: r.error });
 }
 
+// ---- Walk-around course check-ins ----
+
+export async function walkInAction(formData: FormData) {
+  await requireStaff();
+  const { db, cfg, now } = await getCtx();
+  const party = Number(formData.get("party"));
+  const r = await recordWalkIn(db, cfg, String(formData.get("activity")), party, now);
+  back("/staff", r.ok ? { msg: `Checked in a walk-in group of ${party}.` } : { error: r.error });
+}
+
+export async function visitCheckInAction(formData: FormData) {
+  await requireStaff();
+  const { db, now } = await getCtx();
+  const id = Number(formData.get("id"));
+  const r = formData.get("undo") ? await undoCheckIn(db, id) : await checkInVisit(db, id, now);
+  back("/staff", r.ok ? {} : { error: r.error });
+}
+
+// ---- Demo ----
+
 export async function resetDemoAction() {
   await requireStaff();
+  if (!demoMode()) back("/staff", { error: "Reset is only available on the demo." });
   await resetDemoData();
-  back("/staff", { msg: "Demo data reset." });
-}
-
-// ---- Events ----
-
-function eventFrom(formData: FormData): EventInput {
-  const s = (k: string) => String(formData.get(k) ?? "");
-  return {
-    title: s("title"),
-    category: s("category"),
-    description: s("description"),
-    date: s("date"),
-    start_time: s("start_time"),
-    end_time: s("end_time"),
-    location: s("location"),
-    capacity: Number(formData.get("capacity")),
-  };
-}
-
-export async function saveEventAction(formData: FormData) {
-  await requireStaff();
-  const db = await getDb();
-  const id = Number(formData.get("id")) || 0;
-  const input = eventFrom(formData);
-  if (id) {
-    const r = await updateEvent(db, id, input, clubNow());
-    back(`/staff/events/${id}`, r.ok ? { msg: "Saved." } : { error: r.error });
-  } else {
-    const r = await createEvent(db, input, clubNow());
-    if (!r.ok) back("/staff/events/new", { error: r.error, ...Object.fromEntries(Object.entries(input).map(([k, v]) => [k, String(v)])) });
-    else back(`/staff/events/${r.id}`, { msg: "Event published. Members can RSVP now." });
-  }
-}
-
-export async function cancelEventAction(formData: FormData) {
-  await requireStaff();
-  const id = Number(formData.get("id"));
-  const cancel = formData.get("cancel") === "1";
-  await setEventCancelled(await getDb(), id, cancel);
-  back(`/staff/events/${id}`, { msg: cancel ? "Event cancelled. Members who RSVP'd see it marked as cancelled." : "Event reinstated." });
+  // The reset removes every session, including this one.
+  redirect("/login?reset=1");
 }
 
 // ---- Pro shop reservations ----
 
 export async function reservationAction(formData: FormData) {
   await requireStaff();
+  const { db, cfg } = await getCtx();
+  const id = Number(formData.get("id"));
   const to = String(formData.get("to")) as ReservationStatus;
-  const note = String(formData.get("note") ?? "");
-  const r = await staffUpdateReservation(await getDb(), Number(formData.get("id")), to, note);
+  const r = await staffUpdateReservation(db, cfg, id, to, String(formData.get("note") ?? ""));
+  if (r.ok) {
+    const row = (await db.execute({ sql: "SELECT user_id FROM reservations WHERE id = ?", args: [id] })).rows[0];
+    if (row) await notify({ kind: "reservation", userId: Number(row.user_id), reservationId: id, status: to });
+  }
   const words: Record<string, string> = { confirmed: "Confirmed. The member now sees “Ready for pickup”.", declined: "Declined. The member sees your note.", picked_up: "Marked as picked up." };
   back("/staff/reservations", r.ok ? { msg: words[to] ?? "Updated." } : { error: r.error });
 }

@@ -1,8 +1,14 @@
 import "server-only";
 import type { Client } from "@libsql/client";
-import { createTables } from "./schema";
-import { seed } from "./seed";
+import { DEFAULTS, getConfig } from "./config";
+import { dropAll, migrate } from "./schema";
+import { seedClub, seedDemo } from "./seed";
 import { addDays, clubNow } from "./time";
+
+/** DEMO_MODE=true: demo logins, synthetic members and a weekly refresh. Off for a real club. */
+export function demoMode() {
+  return process.env.DEMO_MODE?.trim().toLowerCase() === "true";
+}
 
 // Locally: a SQLite file in the project folder, no setup needed.
 // On Vercel: a free hosted Turso database (same SQLite, over the network).
@@ -41,17 +47,23 @@ function connect(): Promise<Client> {
 }
 
 /**
- * Returns the database, creating tables and demo data the first time.
- * Demo data is refreshed automatically once it is more than 7 days old,
- * so the live demo always has bookings around "today".
+ * Returns the database, bringing its structure up to date first (migrations).
+ * - A brand-new database gets the club's starting setup (settings, areas, events, shop).
+ * - In demo mode only, synthetic members and bookings are added and refreshed weekly
+ *   so the public demo always has activity around "today".
+ * Outside demo mode nothing is ever wiped automatically.
  */
 export async function getDb(): Promise<Client> {
   const client = await connect();
   g.rdReady ??= (async () => {
-    await createTables(client);
-    const row = (await client.execute("SELECT value FROM meta WHERE key = 'seeded_on'")).rows[0];
-    const seededOn = row ? String(row.value) : null;
-    if (!seededOn || seededOn < addDays(clubNow().date, -7)) await seed(client);
+    const isNew = await migrate(client);
+    const today = clubNow((await getConfig(client).catch(() => DEFAULTS)).timezone).date;
+    if (isNew) await seedClub(client, today);
+    if (demoMode()) {
+      const row = (await client.execute("SELECT value FROM meta WHERE key = 'demo_seeded_on'")).rows[0];
+      if (!row) await seedDemo(client, clubNow((await getConfig(client)).timezone));
+      else if (String(row.value) < addDays(today, -7)) await rebuildDemo(client);
+    }
   })().catch((e) => {
     g.rdReady = undefined;
     throw e;
@@ -60,7 +72,16 @@ export async function getDb(): Promise<Client> {
   return client;
 }
 
+async function rebuildDemo(db: Client) {
+  await dropAll(db);
+  await migrate(db);
+  const now = clubNow(DEFAULTS.timezone);
+  await seedClub(db, now.date);
+  await seedDemo(db, now);
+}
+
+/** Demo mode only: wipe everything and start again with fresh demo data. */
 export async function resetDemoData() {
-  const db = await getDb();
-  await seed(db);
+  if (!demoMode()) throw new Error("Reset is only available in demo mode.");
+  await rebuildDemo(await getDb());
 }

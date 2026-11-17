@@ -15,6 +15,8 @@
   --text: #1a1a1a;
   --radius: 12px;
   --tabs-h: 64px;
+  --on-navy: #fff; /* text on the header colour; set from club settings */
+  --on-green: #fff; /* text on the button colour */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,6 +27,7 @@ body {
   line-height: 1.45;
   color: var(--text);
   background: var(--gl);
+  overflow-wrap: break-word; /* long emails and names wrap instead of widening the page */
 }
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -32,10 +35,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* App frame: a phone-width column on any screen */
 .app { max-width: 480px; margin: 0 auto; min-height: 100dvh; background: #fff; position: relative; padding-bottom: calc(var(--tabs-h) + 16px); }
-.bar { background: var(--navy); color: #fff; padding: 18px 16px 16px; }
+.bar { background: var(--navy); color: var(--on-navy); padding: 18px 16px 16px; }
 .bar h1 { font-size: 1.3rem; line-height: 1.2; }
-.bar p { font-size: 0.85rem; color: #c9d3e0; margin-top: 3px; }
-.bar .back { display: inline-block; font-size: 0.85rem; color: #c9d3e0; margin-bottom: 6px; }
+.bar p { font-size: 0.85rem; color: var(--on-navy); opacity: 0.8; margin-top: 3px; }
+.bar .back { display: inline-block; font-size: 0.85rem; color: var(--on-navy); opacity: 0.85; margin-bottom: 6px; }
 .pad { padding: 14px 16px; }
 
 .lbl { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; color: var(--gt); text-transform: uppercase; margin: 18px 0 8px; }
@@ -55,7 +58,7 @@ a.card:hover { border-color: var(--navy2); }
 .note.ok { background: var(--greenl); color: var(--green); }
 
 /* Buttons: at least 44px tall so they are easy to tap */
-.btn { display: block; width: 100%; min-height: 48px; text-align: center; background: var(--green); color: #fff; font-weight: 700; font-size: 1rem; border: 0; border-radius: var(--radius); padding: 12px; margin-top: 12px; cursor: pointer; }
+.btn { display: block; width: 100%; min-height: 48px; text-align: center; background: var(--green); color: var(--on-green); font-weight: 700; font-size: 1rem; border: 0; border-radius: var(--radius); padding: 12px; margin-top: 12px; cursor: pointer; }
 .btn:disabled { background: var(--gm); color: var(--gt); cursor: not-allowed; }
 .btn.sec { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
 .btn.danger { background: #fff; color: var(--red); border: 1px solid var(--red); }
@@ -140,7 +143,7 @@ a.card:hover { border-color: var(--navy2); }
 
 /* Staff desk: wider layout for tablet or desktop */
 .desk { min-height: 100dvh; background: var(--gl); }
-.desk .top { background: var(--navy); color: #fff; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; }
+.desk .top { background: var(--navy); color: var(--on-navy); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; }
 .desk .top h1 { font-size: 1.1rem; }
 .desk .top nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .desk .top nav a, .desk .top nav button { color: #c9d3e0; font-size: 0.9rem; padding: 6px 10px; border-radius: 8px; background: none; border: 0; cursor: pointer; }
@@ -171,3 +174,14 @@ td .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .spacer { flex: 1; }
 .empty { text-align: center; color: var(--gt); padding: 24px 8px; font-size: 0.9rem; }
+
+/* Busy levels as pills */
+.pill.level-quiet { background: var(--greenl); color: var(--green); }
+.pill.level-moderate { background: var(--amber); color: var(--amber-text); }
+.pill.level-busy { background: var(--navy); color: var(--on-navy); }
+ul.card .item:last-child { border-bottom: 0; }
+
+/* Loading placeholders */
+.skeleton { background: linear-gradient(90deg, var(--gl) 25%, #e8ebf0 50%, var(--gl) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-color: transparent; color: transparent; border-radius: 8px; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

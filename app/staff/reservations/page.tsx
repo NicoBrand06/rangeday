@@ -1,17 +1,19 @@
-import { getDb } from "@/lib/db";
+import { getCtx } from "@/lib/context";
+import { requireStaff } from "@/lib/auth";
+import SubmitButton from "@/components/SubmitButton";
 import { STATUS_LABEL, openReservations, price, recentlyClosedReservations, type Reservation } from "@/lib/shop";
 import { reservationAction } from "../actions";
 
-function when(sqlUtc: string) {
+function when(sqlUtc: string, timeZone: string) {
   // created_at is stored in UTC by SQLite; show it in club time.
-  return new Date(sqlUtc.replace(" ", "T") + "Z").toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
+  return new Date(sqlUtc.replace(" ", "T") + "Z").toLocaleString("en-US", { timeZone, weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
-function Row({ r }: { r: Reservation }) {
+function Row({ r, tz }: { r: Reservation; tz: string }) {
   const [label, tone] = STATUS_LABEL[r.status];
   return (
     <tr>
-      <td>PS-{String(r.id).padStart(4, "0")}<br /><span className="muted">{when(r.created_at)}</span></td>
+      <td>PS-{String(r.id).padStart(4, "0")}<br /><span className="muted">{when(r.created_at, tz)}</span></td>
       <td>{r.member_name}<br /><span className="muted">#{r.member_no}</span></td>
       <td><strong>{r.quantity} × {r.item_name}</strong><br /><span className="muted">{r.item_detail} · {price(r.price_cents * r.quantity)}</span></td>
       <td><span className={`pill ${tone}`}>{label}</span>{r.staff_note && <><br /><span className="muted">“{r.staff_note}”</span></>}</td>
@@ -21,9 +23,9 @@ function Row({ r }: { r: Reservation }) {
             <input type="hidden" name="id" value={r.id} />
             <label className="sr-only" htmlFor={`note-${r.id}`}>Note to member</label>
             <input id={`note-${r.id}`} name="note" className="input" placeholder={r.status === "pending" ? "Note to member (optional)" : "Reason, if declining"} style={{ minHeight: 36, padding: "6px 10px", width: "100%" }} />
-            {r.status === "pending" && <button name="to" value="confirmed" className="btn small">Confirm</button>}
-            {r.status === "confirmed" && <button name="to" value="picked_up" className="btn small">Picked up</button>}
-            <button name="to" value="declined" className="btn small danger">Decline</button>
+            {r.status === "pending" && <SubmitButton name="to" value="confirmed" className="btn small" pending="…">Confirm</SubmitButton>}
+            {r.status === "confirmed" && <SubmitButton name="to" value="picked_up" className="btn small" pending="…">Picked up</SubmitButton>}
+            <SubmitButton name="to" value="declined" className="btn small danger" pending="…">Decline</SubmitButton>
           </form>
         )}
       </td>
@@ -33,8 +35,10 @@ function Row({ r }: { r: Reservation }) {
 
 export default async function StaffReservations({ searchParams }: { searchParams: Promise<{ msg?: string; error?: string }> }) {
   const sp = await searchParams;
-  const db = await getDb();
-  const [open, closed] = await Promise.all([openReservations(db), recentlyClosedReservations(db)]);
+  await requireStaff();
+  const { db, cfg } = await getCtx();
+  const open = await openReservations(db, cfg);
+  const closed = await recentlyClosedReservations(db);
   const pending = open.filter((r) => r.status === "pending").length;
   const head = <thead><tr><th>Ref</th><th>Member</th><th>Item</th><th>Status</th><th>Action</th></tr></thead>;
   return (
@@ -44,14 +48,14 @@ export default async function StaffReservations({ searchParams }: { searchParams
       <section className="panel">
         <h2>Pro shop reservations · {pending} to review</h2>
         <p className="muted" style={{ marginBottom: 10 }}>
-          Check the shelf, then confirm (set it aside under the member&apos;s name) or decline with a reason. Members see the status and your note in the app. Payment is taken at pickup.
+          Check the shelf, then confirm (set it aside under the member&apos;s name) or decline with a reason. Members see the status and your note in the app. Payment is taken at pickup. Unanswered requests and uncollected holds expire after {cfg.reservationExpiryDays} days.
         </p>
         <div className="table-wrap">
           <table>
             {head}
             <tbody>
               {open.length === 0 && <tr><td colSpan={5} className="empty">No open reservations.</td></tr>}
-              {open.map((r) => <Row key={r.id} r={r} />)}
+              {open.map((r) => <Row key={r.id} r={r} tz={cfg.timezone} />)}
             </tbody>
           </table>
         </div>
@@ -63,7 +67,7 @@ export default async function StaffReservations({ searchParams }: { searchParams
             {head}
             <tbody>
               {closed.length === 0 && <tr><td colSpan={5} className="empty">Nothing yet.</td></tr>}
-              {closed.map((r) => <Row key={r.id} r={r} />)}
+              {closed.map((r) => <Row key={r.id} r={r} tz={cfg.timezone} />)}
             </tbody>
           </table>
         </div>

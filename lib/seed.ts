@@ -1,27 +1,47 @@
 import type { Client, InStatement } from "@libsql/client";
-import { POLICY, SLOTS } from "./club";
+import { DEFAULTS, DEFAULT_HOURS, getConfig, saveSettings, slotsFor } from "./config";
+import { ensureOccurrences } from "./events";
 import { addDays, clubNow, weekday } from "./time";
-import { createTables, dropTables } from "./schema";
 
-// Synthetic demo data. Every name and number here is made up.
-// Bookings are generated relative to "today", so the demo never looks stale.
+// Two kinds of starting data:
+// - seedClub(): what any new club starts with: settings, hours, session types, stations,
+//   pro shop items and the event calendar. No people.
+// - seedDemo(): synthetic members, bookings, RSVPs and reservations, only in DEMO_MODE.
+// Every name and number here is made up. Oak & Feather Ranch is fictional.
 
-export const DEMO_MEMBER_ID = 1; // Sam
-export const DEMO_STAFF_ID = 2; // Jordan
+export const DEMO_MEMBER_NO = "1042"; // Sam
+export const DEMO_STAFF_NO = "S-01"; // Jordan
 
-const FIRST = ["Alex", "Blake", "Casey", "Dana", "Elliot", "Frankie", "Gray", "Harper", "Ira", "Jesse", "Kendall", "Logan", "Marlow", "Noel", "Oakley", "Parker", "Quinn", "Reese", "Sawyer", "Tatum", "Rowan", "Avery", "Emerson", "Finley", "Hayden", "Jamie", "Kai", "Lane", "Morgan", "Peyton"];
-const LAST = ["Abbott", "Brennan", "Caldwell", "Dorsey", "Ellison", "Fairbanks", "Garrity", "Holloway", "Ingram", "Jessup", "Kimball", "Lockhart", "Merritt", "Northcutt", "Oakes", "Prescott", "Quarles", "Radford", "Stroud", "Thackery", "Underhill", "Vance", "Whitlock", "Yardley"];
+// [key, label, booking type, people per slot]. See the activities table in schema.ts.
+const ACTIVITIES: [string, string, "slot" | "shared" | "walkaround", number | null][] = [
+  ["clays", "Sporting clays", "walkaround", 30], // 15-station course: no booking, shows how busy; "busy" from ~30 people
+  ["fivestand", "5-Stand", "slot", null],
+  ["trap", "Trap", "slot", null],
+  ["skeet", "Skeet", "slot", null],
+  ["flat", "Flat range", "shared", 5],
+  ["pond", "Fishing pond", "shared", 5],
+  ["archery", "Archery range", "shared", 5],
+];
 
+// [activity, name, most people in one party]
 const STATIONS: [string, string, number][] = [
-  ["clays", "Clays course, Group A", 5],
-  ["clays", "Clays course, Group B", 5],
-  ["clays", "Clays course, Group C", 5],
+  ["clays", "Sporting clays course (15 stations)", 5],
   ["fivestand", "5-Stand, Field 1", 5],
   ["fivestand", "5-Stand, Field 2", 5],
   ["trap", "Trap, Field 1", 5],
   ["trap", "Trap, Field 2", 5],
   ["skeet", "Skeet, Field 1", 5],
   ["skeet", "Skeet, Field 2", 5],
+  ["flat", "Flat range", 5],
+  ["pond", "Fishing pond", 5],
+  ["archery", "Archery range", 5],
+];
+
+// Fictional instructors: [name, specialty, disciplines, weekly hours [weekday, start, end][]]
+const INSTRUCTORS: [string, string, string, [number, string, string][]][] = [
+  ["Dale Whitcomb", "Sporting clays & trap, all levels", "clays,trap,fivestand", [[2, "09:00", "12:00"], [2, "13:00", "17:00"], [4, "09:00", "15:00"], [6, "08:00", "13:00"]]],
+  ["Rosa Lindqvist", "Archery: beginners and youth", "archery", [[3, "10:00", "16:00"], [5, "12:00", "17:00"], [6, "09:00", "14:00"], [0, "10:00", "14:00"]]],
+  ["Marcus Bell", "Skeet & 5-Stand, competition coaching", "skeet,fivestand,clays", [[1, "13:00", "17:00"], [5, "08:00", "12:00"], [6, "12:00", "17:00"], [0, "09:00", "13:00"]]],
 ];
 
 const ITEMS: [string, string, string, number][] = [
@@ -32,7 +52,7 @@ const ITEMS: [string, string, string, number][] = [
   ["28 ga target load, 8 shot", "Ammunition", "Box of 25", 1899],
   [".410 target load, 8.5 shot", "Ammunition", "Box of 25", 1949],
   ["Shooting vest, mesh", "Apparel", "Sizes S to XXL", 5499],
-  ["Club logo cap", "Apparel", "One size", 2400],
+  ["Ranch logo cap", "Apparel", "One size", 2400],
   ["Shell pouch, canvas", "Apparel", "Belt clip", 2999],
   ["Shooting gloves", "Apparel", "Sizes S to XL", 3499],
   ["Shooting glasses, amber", "Accessories", "One size", 3999],
@@ -43,18 +63,66 @@ const ITEMS: [string, string, string, number][] = [
   ["Shotgun cleaning kit", "Accessories", "12, 20 and 28 ga", 2999],
 ];
 
-type EventSeed = [string, string, string, number, string, string, string, number, number];
-// [title, category, description, daysFromToday, start, end, location, capacity, rsvps]
-const EVENTS: EventSeed[] = [
-  ["New Shooter Clinic", "Clinic", "A relaxed two-hour intro for members who are new to clays, or who want to bring a family member along. Covers safety, gun fit and stance, then a coached round on the 5-Stand. Club guns and shells provided.", 3, "09:00", "11:00", "5-Stand, Field 1", 8, 6],
-  ["Saturday Sporting Clays League", "League", "Weekly league round on the full clays course. Squads of five are drawn at 8:45. Scores go on the clubhouse board.", 5, "08:30", "12:00", "Clays course", 30, 22],
-  ["Skeet Doubles Workshop", "Clinic", "Coach-led session on station 3, 4 and 5 doubles. Bring 100 shells. Limited to 6 so everyone gets real coaching time.", 8, "13:00", "15:30", "Skeet, Field 2", 6, 6],
-  ["Wobble Trap Night", "Social", "Floodlit wobble trap followed by chili in the clubhouse. A fun one; all levels welcome.", 10, "16:00", "19:00", "Trap, Field 1", 20, 11],
-  ["Safety and Range Etiquette Refresher", "Clinic", "Required once a year for all members. 45 minutes in the clubhouse, then a quick walk of the course. Counts toward your annual safety sign-off.", 12, "10:00", "10:45", "Clubhouse", 25, 9],
-  ["Winter 5-Stand Fun Shoot", "Social", "Three menus of 25 targets with handicaps so every level has a chance. Prizes for top three and for most improved.", 17, "09:30", "13:00", "5-Stand, Fields 1 and 2", 24, 7],
-  ["Junior Shooting Clinic", "Clinic", "For members' children aged 12 to 17, with a parent or guardian present. Small groups with certified instructors.", 20, "10:00", "12:00", "Trap, Field 2", 10, 3],
-  ["Annual Members' Charity Shoot", "Tournament", "Our biggest day of the year. 100-target sporting clays, lunch, raffle and awards. All proceeds go to the county youth conservation fund.", 26, "08:00", "15:00", "Clays course", 60, 31],
-];
+/** Next date on or after `from` that falls on `dow` (0 = Sunday). */
+function nextWeekday(from: string, dow: number): string {
+  let d = from;
+  while (new Date(`${d}T12:00:00Z`).getUTCDay() !== dow) d = addDays(d, 1);
+  return d;
+}
+
+export async function seedClub(db: Client, today: string) {
+  await saveSettings(db, DEFAULTS);
+  const stmts: InStatement[] = [];
+  for (const h of DEFAULT_HOURS) {
+    stmts.push({ sql: "INSERT OR REPLACE INTO hours (weekday, open, close, closed) VALUES (?,?,?,?)", args: [h.weekday, h.open, h.close, 0] });
+  }
+  ACTIVITIES.forEach(([key, label, mode, perSlot], i) =>
+    stmts.push({ sql: "INSERT INTO activities (key, label, mode, per_slot, sort) VALUES (?,?,?,?,?)", args: [key, label, mode, perSlot, i] }),
+  );
+  STATIONS.forEach(([activity, name, cap], i) =>
+    stmts.push({ sql: "INSERT INTO stations (id, activity, name, capacity) VALUES (?,?,?,?)", args: [i + 1, activity, name, cap] }),
+  );
+  ITEMS.forEach(([name, cat, detail, price], i) =>
+    stmts.push({ sql: "INSERT INTO items (id, name, category, detail, price_cents) VALUES (?,?,?,?,?)", args: [i + 1, name, cat, detail, price] }),
+  );
+
+  INSTRUCTORS.forEach(([name, specialty, disciplines, hours], i) => {
+    stmts.push({ sql: "INSERT INTO instructors (id, name, specialty, disciplines) VALUES (?,?,?,?)", args: [i + 1, name, specialty, disciplines] });
+    for (const [weekday, start, end] of hours)
+      stmts.push({ sql: "INSERT INTO instructor_hours (instructor_id, weekday, start_time, end_time) VALUES (?,?,?,?)", args: [i + 1, weekday, start, end] });
+  });
+
+  // The event calendar: three repeating series plus a one-off event.
+  stmts.push(
+    {
+      sql: `INSERT INTO event_series (id,title,category,description,location,start_time,end_time,capacity,rule,weekday,starts_on)
+            VALUES (1,'Sunset Clays','Social',?,'Clays course','17:00','19:30',24,'weekly',4,?)`,
+      args: ["Our Thursday evening round: 50 targets on the clays course as the sun goes down, then drinks on the clubhouse porch. All levels welcome; squads are made up on the day.", today],
+    },
+    {
+      sql: `INSERT INTO event_series (id,title,category,description,location,start_time,end_time,capacity,rule,weekday,nth,starts_on)
+            VALUES (2,'Members Shoot','Members',?,'Clays course and 5-Stand','09:00','12:00',40,'monthly',6,1,?)`,
+      args: ["The first Saturday of every month. 100 targets across the clays course and 5-Stand, with a members' lunch after. Bring your own shells or reserve them for pickup.", today],
+    },
+    {
+      sql: `INSERT INTO event_series (id,title,category,description,location,start_time,end_time,capacity,rule,month_day,starts_on)
+            VALUES (3,'Rodeo','Annual',?,'Arena and clubhouse lawn','10:00','16:00',150,'yearly','05-15',?)`,
+      args: ["Once a year the ranch hosts its rodeo day: team roping and barrel racing in the arena, a fun shoot on the 5-Stand, barbecue and live music on the lawn. Members and their families.", today],
+    },
+    {
+      sql: `INSERT INTO events (title,category,description,date,start_time,end_time,location,capacity)
+            VALUES ('Color Shoot','Social',?,?,'10:00','13:00','5-Stand, Fields 1 and 2',30)`,
+      args: ["Bright coloured targets, team format and prizes for the best-dressed squad. Teams of three; sign up on your own and we'll match you.", nextWeekday(addDays(today, 18), 6)],
+    },
+  );
+  await db.batch(stmts, "write");
+  await ensureOccurrences(db, today, true);
+}
+
+// ---------- Demo data ----------
+
+const FIRST = ["Alex", "Blake", "Casey", "Dana", "Elliot", "Frankie", "Gray", "Harper", "Ira", "Jesse", "Kendall", "Logan", "Marlow", "Noel", "Oakley", "Parker", "Quinn", "Reese", "Sawyer", "Tatum", "Rowan", "Avery", "Emerson", "Finley", "Hayden", "Jamie", "Kai", "Lane", "Morgan", "Peyton"];
+const LAST = ["Abbott", "Brennan", "Caldwell", "Dorsey", "Ellison", "Fairbanks", "Garrity", "Holloway", "Ingram", "Jessup", "Kimball", "Lockhart", "Merritt", "Northcutt", "Oakes", "Prescott", "Quarles", "Radford", "Stroud", "Thackery", "Underhill", "Vance", "Whitlock", "Yardley"];
 
 /** Small deterministic random generator, so every reset produces the same pattern. */
 function rng(seed: number) {
@@ -76,96 +144,149 @@ function demand(date: string, time: string): number {
   return Math.min(0.95, base * shape);
 }
 
-export async function seed(db: Client, now = clubNow()) {
-  await dropTables(db);
-  await createTables(db);
+async function chunked(db: Client, stmts: InStatement[]) {
+  // One giant request can exceed a hosted database's size limit, so send in chunks.
+  for (let i = 0; i < stmts.length; i += 250) await db.batch(stmts.slice(i, i + 250), "write");
+}
+
+export async function seedDemo(db: Client, now = clubNow()) {
+  const cfg = await getConfig(db);
   const rand = rng(20261121);
   const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
   const stmts: InStatement[] = [];
 
-  // People. Sam (member) and Jordan (staff) are the two demo logins.
-  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role) VALUES (1,'Sam Whitaker','1042','member')", args: [] });
-  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role) VALUES (2,'Jordan Ellis','S-01','staff')", args: [] });
-  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role) VALUES (3,'Priya Raman','1210','member')", args: [] });
-  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role) VALUES (4,'Morgan Hale','S-02','staff')", args: [] });
+  // Demo accounts have no password: they're reached with the "Try the demo" buttons, only in demo mode.
+  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role,is_demo) VALUES (1,'Sam Whitaker',?,'member',1)", args: [DEMO_MEMBER_NO] });
+  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role,is_demo) VALUES (2,'Jordan Ellis',?,'staff',1)", args: [DEMO_STAFF_NO] });
+  stmts.push({ sql: "INSERT INTO users (id,name,member_no,role,is_demo) VALUES (3,'Priya Raman','1210','member',1)", args: [] });
   const memberIds: number[] = [3];
   for (let i = 0; i < 58; i++) {
     const id = 5 + i;
-    const memberNo = String(1101 + i * 13); // 1101, 1114, ... never clashes with 1042 or 1210
     stmts.push({
-      sql: "INSERT INTO users (id,name,member_no,role) VALUES (?,?,?,'member')",
-      args: [id, `${FIRST[i % FIRST.length]} ${LAST[(i * 7) % LAST.length]}`, memberNo],
+      sql: "INSERT INTO users (id,name,member_no,role,is_demo) VALUES (?,?,?,'member',1)",
+      args: [id, `${FIRST[i % FIRST.length]} ${LAST[(i * 7) % LAST.length]}`, String(1101 + i * 13)],
     });
     memberIds.push(id);
   }
 
-  STATIONS.forEach(([activity, name, cap], i) =>
-    stmts.push({ sql: "INSERT INTO stations (id,activity,name,capacity) VALUES (?,?,?,?)", args: [i + 1, activity, name, cap] }),
-  );
+  const stations = (
+    await db.execute("SELECT s.id, a.mode, a.per_slot FROM stations s JOIN activities a ON a.key = s.activity WHERE s.active = 1 ORDER BY s.id")
+  ).rows.map((r) => ({ id: Number(r.id), mode: String(r.mode), perSlot: r.per_slot == null ? null : Number(r.per_slot) }));
 
-  // Sam's own bookings: one coming up on the next Saturday, one last week.
-  let nextSat = addDays(now.date, 1);
-  while (weekday(nextSat) !== "Sat") nextSat = addDays(nextSat, 1);
+  // Sam's own bookings: 5-Stand on the next Saturday, and the flat range last week.
+  const nextSat = nextWeekday(addDays(now.date, 1), 6);
   const samBookings = [
-    { station: 5, date: nextSat, time: "09:00", party: 3, status: "booked" },
-    { station: 1, date: addDays(now.date, -5), time: "10:00", party: 2, status: "checked_in" },
+    { station: 2, date: nextSat, time: "09:00", party: 3, status: "booked", shared: 0 },
+    { station: 8, date: addDays(now.date, -5), time: "10:00", party: 2, status: "checked_in", shared: 1 },
   ];
   const taken = new Set(samBookings.map((b) => `${b.station}|${b.date}|${b.time}`));
   for (const b of samBookings) {
     stmts.push({
-      sql: "INSERT INTO bookings (user_id,station_id,date,start_time,party_size,status,source) VALUES (1,?,?,?,?,?,'app')",
-      args: [b.station, b.date, b.time, b.party, b.status],
+      sql: "INSERT INTO bookings (user_id,station_id,date,start_time,party_size,status,source,shared) VALUES (1,?,?,?,?,?,'app',?)",
+      args: [b.station, b.date, b.time, b.party, b.status, b.shared],
     });
   }
 
   // Everyone else: 7 days of history plus the bookable window ahead.
+  // Fields get at most one party per slot and shared areas stay within their headcount.
+  // The walk-around clays course has no bookings: it gets check-ins and planned visits instead.
   const perMemberDay = new Map<string, number>();
-  for (let d = -7; d < POLICY.daysAhead; d++) {
+  for (let d = -7; d < cfg.bookingDays; d++) {
     const date = addDays(now.date, d);
-    for (let s = 1; s <= STATIONS.length; s++) {
-      for (const time of SLOTS) {
-        if (taken.has(`${s}|${date}|${time}`)) continue;
-        // Bookings thin out further ahead: people book closer to the day.
-        const fade = d <= 2 ? 1 : d <= 7 ? 0.75 : 0.4;
-        if (rand() > demand(date, time) * fade) continue;
-        let member = pick(memberIds);
-        for (let tries = 0; (perMemberDay.get(`${member}|${date}`) ?? 0) >= POLICY.maxBookingsPerMemberPerDay && tries < 20; tries++) {
-          member = pick(memberIds);
-        }
-        const key = `${member}|${date}`;
-        if ((perMemberDay.get(key) ?? 0) >= POLICY.maxBookingsPerMemberPerDay) continue;
-        perMemberDay.set(key, (perMemberDay.get(key) ?? 0) + 1);
+    const fade = d <= 2 ? 1 : d <= 7 ? 0.75 : 0.4; // people book closer to the day
+    for (const s of stations) {
+      if (s.mode === "walkaround") continue;
+      for (const time of slotsFor(cfg, date)) {
+        if (taken.has(`${s.id}|${date}|${time}`)) continue;
+        const want = demand(date, time) * fade;
+        const tries = s.mode === "slot" ? 1 : 3;
+        let people = 0;
+        for (let t = 0; t < tries; t++) {
+          if (rand() > (s.mode === "shared" ? want * 0.6 : want)) continue;
+          const party = 1 + Math.floor(rand() * (s.mode === "shared" ? 2 : 4));
+          if (s.mode === "shared" && people + party > (s.perSlot ?? 5)) break;
+          let member = pick(memberIds);
+          for (let k = 0; (perMemberDay.get(`${member}|${date}`) ?? 0) >= cfg.maxPerDay && k < 20; k++) member = pick(memberIds);
+          const key = `${member}|${date}`;
+          if ((perMemberDay.get(key) ?? 0) >= cfg.maxPerDay) continue;
+          perMemberDay.set(key, (perMemberDay.get(key) ?? 0) + 1);
+          people += party;
 
-        const inPast = date < now.date || (date === now.date && time < now.time);
-        const r = rand();
-        let status = "booked";
-        if (inPast) status = r < 0.08 ? "no_show" : r < 0.12 && date === now.date ? "booked" : "checked_in";
-        else if (r < 0.04) status = "cancelled";
-        const party = 1 + Math.floor(rand() * 4);
-        stmts.push({
-          sql: "INSERT INTO bookings (user_id,station_id,date,start_time,party_size,status,source) VALUES (?,?,?,?,?,?,?)",
-          args: [member, s, date, time, party, status, rand() < 0.45 ? "phone" : "app"],
-        });
+          const inPast = date < now.date || (date === now.date && time < now.time);
+          const r = rand();
+          let status = "booked";
+          if (inPast) status = r < 0.08 ? "no_show" : r < 0.12 && date === now.date ? "booked" : "checked_in";
+          else if (r < 0.04) status = "cancelled";
+          stmts.push({
+            sql: "INSERT INTO bookings (user_id,station_id,date,start_time,party_size,status,source,shared) VALUES (?,?,?,?,?,?,?,?)",
+            args: [member, s.id, date, time, party, status, rand() < 0.45 ? "phone" : "app", s.mode === "slot" ? 0 : 1],
+          });
+        }
       }
     }
   }
 
-  EVENTS.forEach(([title, cat, desc, days, start, end, loc, cap, n], i) => {
-    const id = i + 1;
-    stmts.push({
-      sql: "INSERT INTO events (id,title,category,description,date,start_time,end_time,location,capacity) VALUES (?,?,?,?,?,?,?,?,?)",
-      args: [id, title, cat, desc, addDays(now.date, days), start, end, loc, cap],
-    });
-    for (let k = 0; k < n; k++) {
-      stmts.push({ sql: "INSERT INTO rsvps (event_id,user_id) VALUES (?,?)", args: [id, memberIds[(k * 5 + i) % memberIds.length]] });
+  // Clays course: walk-in groups and checked-in visits in the past, planned visits ahead.
+  for (let d = -7; d < cfg.bookingDays; d++) {
+    const date = addDays(now.date, d);
+    for (const time of slotsFor(cfg, date)) {
+      const groups = Math.round(demand(date, time) * (d <= 2 ? 5 : d <= 7 ? 3 : 1.5) * (0.5 + rand()));
+      for (let g = 0; g < groups; g++) {
+        const past = date < now.date || (date === now.date && time <= now.time);
+        const party = 1 + Math.floor(rand() * 4);
+        const walkIn = past && rand() < 0.4;
+        stmts.push({
+          sql: "INSERT INTO visits (activity,user_id,date,time,party_size,kind,source) VALUES ('clays',?,?,?,?,?,?)",
+          args: [walkIn ? null : pick(memberIds), date, time, party, past ? "checked_in" : "expected", walkIn ? "desk" : "app"],
+        });
+      }
     }
+  }
+  stmts.push({
+    sql: "INSERT INTO visits (activity,user_id,date,time,party_size,kind,source) VALUES ('clays',1,?,'10:00',2,'expected','app')",
+    args: [addDays(now.date, 2)],
   });
-  // Sam has already RSVP'd to the league round.
-  stmts.push({ sql: "INSERT INTO rsvps (event_id,user_id) VALUES (2,1)", args: [] });
 
-  ITEMS.forEach(([name, cat, detail, price], i) =>
-    stmts.push({ sql: "INSERT INTO items (id,name,category,detail,price_cents) VALUES (?,?,?,?,?)", args: [i + 1, name, cat, detail, price] }),
-  );
+  // Lessons: a few booked on the instructors' upcoming days, using the real booking rules
+  // (so they can never double-book). Members must be saved first.
+  await chunked(db, stmts);
+  stmts.length = 0;
+  const { availableInstructors, bookLesson } = await import("./lessons");
+  const learners = [1, ...memberIds.slice(0, 12)];
+  let li = 0;
+  for (let d = 1; d < Math.min(cfg.bookingDays, 10); d++) {
+    const date = addDays(now.date, d);
+    for (const discipline of ["clays", "archery", "skeet"]) {
+      for (const { instructor, times } of await availableInstructors(db, cfg, discipline, date, now)) {
+        if (!times.length || rand() > 0.6) continue;
+        const time = times[Math.floor(rand() * times.length)];
+        await bookLesson(db, cfg, { instructorId: instructor.id, userId: learners[li++ % learners.length], discipline, date, time, source: rand() < 0.5 ? "phone" : "app" }, now);
+      }
+    }
+  }
+
+  // RSVPs: fill the next Sunset Clays (with a waitlist) and part of the rest.
+  const events = (await db.execute({ sql: "SELECT id, title, capacity FROM events WHERE date >= ? AND cancelled = 0 ORDER BY date", args: [now.date] })).rows;
+  let firstSunset = true;
+  for (const e of events) {
+    const cap = Number(e.capacity);
+    let going = Math.min(memberIds.length, Math.floor(cap * (0.3 + rand() * 0.5)));
+    let waitlist = 0;
+    if (e.title === "Sunset Clays" && firstSunset) {
+      going = cap;
+      waitlist = 2;
+      firstSunset = false;
+    }
+    for (let k = 0; k < going + waitlist && k < memberIds.length; k++) {
+      stmts.push({
+        sql: "INSERT INTO rsvps (event_id,user_id,status,created_at) VALUES (?,?,?,datetime('now', ?))",
+        args: [Number(e.id), memberIds[(k * 7 + Number(e.id)) % memberIds.length], k < going ? "going" : "waitlist", `-${(going + waitlist - k) * 3} minutes`],
+      });
+    }
+  }
+  const membersShoot = events.find((e) => e.title === "Members Shoot");
+  if (membersShoot) stmts.push({ sql: "INSERT OR IGNORE INTO rsvps (event_id,user_id,status) VALUES (?,1,'going')", args: [Number(membersShoot.id)] });
+
   // [member, item, qty, status, staff note, hours ago]
   const reservations: [number, number, number, string, string | null, number][] = [
     [1, 11, 1, "confirmed", "Set aside behind the counter, under your name.", 26],
@@ -175,15 +296,13 @@ export async function seed(db: Client, now = clubNow()) {
     [27, 7, 1, "declined", "Sorry, size L is sold out until the next delivery.", 30],
   ];
   for (const [user, item, qty, status, note, ago] of reservations) {
+    const changed = `-${Math.max(0, ago - 2)} hours`;
     stmts.push({
-      sql: `INSERT INTO reservations (user_id,item_id,quantity,status,staff_note,created_at,updated_at)
-            VALUES (?,?,?,?,?,datetime('now', ?),datetime('now', ?))`,
-      args: [user, item, qty, status, note, `-${ago} hours`, `-${Math.max(0, ago - 2)} hours`],
+      sql: `INSERT INTO reservations (user_id,item_id,quantity,status,staff_note,created_at,confirmed_at,updated_at)
+            VALUES (?,?,?,?,?,datetime('now', ?),CASE WHEN ? = 'confirmed' THEN datetime('now', ?) END,datetime('now', ?))`,
+      args: [user, item, qty, status, note, `-${ago} hours`, status, changed, changed],
     });
   }
-
-  // Send in chunks: one giant request can exceed a hosted database's size limit.
-  for (let i = 0; i < stmts.length; i += 250) await db.batch(stmts.slice(i, i + 250), "write");
-  // Written last, so a half-finished seed is redone on the next visit.
-  await db.execute({ sql: "INSERT INTO meta (key,value) VALUES ('seeded_on',?)", args: [now.date] });
+  await chunked(db, stmts);
+  await db.execute({ sql: "INSERT OR REPLACE INTO meta (key, value) VALUES ('demo_seeded_on', ?)", args: [now.date] });
 }

@@ -1,17 +1,25 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { getCtx } from "@/lib/context";
 import { cancelRsvp, rsvp } from "@/lib/events";
-import { clubNow } from "@/lib/time";
+import { notify } from "@/lib/notify";
 
 export async function rsvpAction(formData: FormData) {
   const user = await requireUser();
+  const { db, now } = await getCtx();
   const id = Number(formData.get("id"));
   const going = formData.get("going") === "1";
-  const db = await getDb();
-  const r = going ? await rsvp(db, id, user.id, clubNow()) : await cancelRsvp(db, id, user.id, clubNow());
+  let q: string;
+  if (going) {
+    const r = await rsvp(db, id, user.id, now);
+    q = r.ok ? (r.status === "going" ? "joined=1" : "waitlisted=1") : `error=${encodeURIComponent(r.error)}`;
+  } else {
+    const r = await cancelRsvp(db, id, user.id, now);
+    if (r.ok) for (const u of r.promoted) await notify({ kind: "waitlist_promoted", userId: u, eventId: id });
+    q = r.ok ? "left=1" : `error=${encodeURIComponent(r.error)}`;
+  }
   revalidatePath("/", "layout");
-  redirect(`/events/${id}?${r.ok ? (going ? "joined=1" : "left=1") : `error=${encodeURIComponent(r.error)}`}`);
+  redirect(`/events/${id}?${q}`);
 }

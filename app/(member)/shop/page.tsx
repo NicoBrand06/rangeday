@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDb } from "@/lib/db";
+import { getCtx } from "@/lib/context";
 import { requireUser } from "@/lib/auth";
 import { CATEGORIES, listItems, price, reservationsFor } from "@/lib/shop";
 import ItemIcon from "@/components/ItemIcon";
@@ -7,11 +7,11 @@ import ItemIcon from "@/components/ItemIcon";
 export default async function ShopPage({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string }> }) {
   const sp = await searchParams;
   const user = await requireUser();
-  const db = await getDb();
+  const { db, cfg } = await getCtx();
   const cat = CATEGORIES.includes(sp.cat ?? "") ? sp.cat : undefined;
   const q = sp.q?.trim().slice(0, 60) || undefined;
   const items = await listItems(db, cat, q);
-  const open = (await reservationsFor(db, user.id)).filter((r) => r.status === "pending" || r.status === "confirmed");
+  const open = (await reservationsFor(db, cfg, user.id)).filter((r) => r.status === "pending" || r.status === "confirmed");
   const ready = open.filter((r) => r.status === "confirmed").length;
 
   return (
@@ -50,7 +50,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
             <span className="muted" style={{ whiteSpace: "nowrap" }}>{price(i.price_cents)}</span>
           </Link>
         ))}
-        <p className="note">No live stock count yet. Reserve an item and the pro shop confirms it&apos;s on the shelf, usually within desk hours.</p>
+        <p className="note">No live stock count yet. Reserve an item and the pro shop confirms it&apos;s on the shelf. Requests and holds expire after {cfg.reservationExpiryDays} days.</p>
       </div>
     </>
   );

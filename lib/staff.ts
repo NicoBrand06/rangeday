@@ -1,10 +1,9 @@
 import type { Client } from "@libsql/client";
-import type { BookingRow, Result } from "./booking";
-import { getBooking } from "./booking";
-import { SLOTS } from "./club";
+import type { User } from "./accounts";
+import { getBooking, type BookingRow, type Result } from "./booking";
 import type { ClubNow } from "./time";
 
-// Rules for the front desk console (F11 in the case study).
+// Rules for the front desk console (F11 in the case study) and the People page.
 
 export type DeskBooking = BookingRow & { member_name: string; member_no: string };
 
@@ -18,8 +17,9 @@ export async function bookingsOn(db: Client, date: string): Promise<DeskBooking[
   return rs.rows as unknown as DeskBooking[];
 }
 
+/** Active members, for the phone-booking pickers. */
 export async function members(db: Client) {
-  const rs = await db.execute("SELECT id, name, member_no FROM users WHERE role = 'member' ORDER BY name");
+  const rs = await db.execute("SELECT id, name, member_no FROM users WHERE role = 'member' AND active = 1 ORDER BY name");
   return rs.rows as unknown as { id: number; name: string; member_no: string }[];
 }
 
@@ -41,73 +41,6 @@ export async function setAttendance(db: Client, id: number, to: "checked_in" | "
   return { ok: true };
 }
 
-export type EventInput = {
-  title: string;
-  category: string;
-  description: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  location: string;
-  capacity: number;
-};
-
-export const EVENT_CATEGORIES = ["Clinic", "League", "Social", "Tournament"];
-
-function validateEvent(e: EventInput, now: ClubNow): string | null {
-  if (!e.title.trim()) return "Give the event a title.";
-  if (!EVENT_CATEGORIES.includes(e.category)) return "Pick a category.";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) return "Pick a date.";
-  if (e.date < now.date) return "The date is in the past.";
-  if (!/^\d{2}:\d{2}$/.test(e.start_time) || !/^\d{2}:\d{2}$/.test(e.end_time)) return "Set a start and end time.";
-  if (e.end_time <= e.start_time) return "The end time must be after the start time.";
-  if (!e.location.trim()) return "Add a location.";
-  if (!Number.isInteger(e.capacity) || e.capacity < 1 || e.capacity > 500) return "Capacity must be between 1 and 500.";
-  return null;
-}
-
-export async function createEvent(db: Client, e: EventInput, now: ClubNow): Promise<Result<{ id: number }>> {
-  const err = validateEvent(e, now);
-  if (err) return { ok: false, error: err };
-  const rs = await db.execute({
-    sql: "INSERT INTO events (title,category,description,date,start_time,end_time,location,capacity) VALUES (?,?,?,?,?,?,?,?)",
-    args: [e.title.trim(), e.category, e.description.trim(), e.date, e.start_time, e.end_time, e.location.trim(), e.capacity],
-  });
-  return { ok: true, id: Number(rs.lastInsertRowid) };
-}
-
-export async function updateEvent(db: Client, id: number, e: EventInput, now: ClubNow): Promise<Result> {
-  const err = validateEvent(e, now);
-  if (err) return { ok: false, error: err };
-  const going = Number((await db.execute({ sql: "SELECT count(*) AS n FROM rsvps WHERE event_id = ?", args: [id] })).rows[0].n);
-  if (e.capacity < going) return { ok: false, error: `${going} members have already RSVP'd, so capacity can't go below ${going}.` };
-  await db.execute({
-    sql: "UPDATE events SET title=?, category=?, description=?, date=?, start_time=?, end_time=?, location=?, capacity=? WHERE id = ?",
-    args: [e.title.trim(), e.category, e.description.trim(), e.date, e.start_time, e.end_time, e.location.trim(), e.capacity, id],
-  });
-  return { ok: true };
-}
-
-export async function setEventCancelled(db: Client, id: number, cancelled: boolean): Promise<Result> {
-  await db.execute({ sql: "UPDATE events SET cancelled = ? WHERE id = ?", args: [cancelled ? 1 : 0, id] });
-  return { ok: true };
-}
-
-export async function attendees(db: Client, eventId: number) {
-  const rs = await db.execute({
-    sql: "SELECT u.name, u.member_no FROM rsvps r JOIN users u ON u.id = r.user_id WHERE r.event_id = ? ORDER BY r.id",
-    args: [eventId],
-  });
-  return rs.rows as unknown as { name: string; member_no: string }[];
-}
-
-export async function allEvents(db: Client) {
-  const rs = await db.execute(
-    "SELECT e.*, (SELECT count(*) FROM rsvps r WHERE r.event_id = e.id) AS going FROM events e ORDER BY e.date, e.start_time",
-  );
-  return rs.rows as unknown as (EventInput & { id: number; going: number; cancelled: number })[];
-}
-
 /** Daily figures for the stat tiles at the top of the desk. */
 export function dayStats(rows: DeskBooking[], now: ClubNow, date: string) {
   const live = rows.filter((r) => r.status !== "cancelled");
@@ -121,4 +54,75 @@ export function dayStats(rows: DeskBooking[], now: ClubNow, date: string) {
   };
 }
 
-export const SLOT_OPTIONS = SLOTS;
+// ---- People ----
+
+export type Person = {
+  id: number;
+  name: string;
+  email: string | null;
+  member_no: string;
+  role: "member" | "staff";
+  active: number;
+  is_demo: number;
+  created_at: string;
+};
+
+/** "jordan.ellis@example.com" -> "jo•••@example.com" (shown to demo staff on the public demo). */
+export function maskEmail(email: string | null) {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  return `${local.slice(0, 2)}•••@${domain}`;
+}
+
+export async function listPeople(db: Client, q = ""): Promise<Person[]> {
+  const like = `%${q.trim()}%`;
+  const rs = await db.execute({
+    sql: `SELECT id, name, email, member_no, role, active, is_demo, created_at FROM users
+          WHERE name != 'Deleted member' AND (? = '%%' OR name LIKE ? OR email LIKE ? OR member_no LIKE ?)
+          ORDER BY active DESC, role DESC, name LIMIT 200`,
+    args: [like, like, like, like],
+  });
+  return rs.rows as unknown as Person[];
+}
+
+/**
+ * Who may change whom:
+ * - Nobody can change their own role or deactivate themselves (so the club can't lock itself out).
+ * - The last active staff account can't be demoted.
+ * - On the public demo, the shared demo staff login can only change demo accounts, never
+ *   real sign-ups (otherwise any visitor could take over a real account).
+ */
+async function guard(db: Client, actor: Pick<User, "id" | "is_demo">, userId: number): Promise<Result<{ target: Person }>> {
+  const target = (await db.execute({ sql: "SELECT id, name, email, member_no, role, active, is_demo, created_at FROM users WHERE id = ?", args: [userId] }))
+    .rows[0] as unknown as Person | undefined;
+  if (!target) return { ok: false, error: "Account not found." };
+  if (target.id === actor.id) return { ok: false, error: "You can't change your own account here. Ask another staff member." };
+  if (Number(actor.is_demo) && !Number(target.is_demo)) return { ok: false, error: "The demo staff login can't change real accounts." };
+  return { ok: true, target };
+}
+
+export async function setRole(db: Client, actor: Pick<User, "id" | "is_demo">, userId: number, role: "member" | "staff"): Promise<Result> {
+  const g = await guard(db, actor, userId);
+  if (!g.ok) return g;
+  if (role === "member" && g.target.role === "staff") {
+    const n = Number((await db.execute("SELECT count(*) AS n FROM users WHERE role = 'staff' AND active = 1")).rows[0].n);
+    if (n <= 1) return { ok: false, error: "This is the last staff account, so it can't be changed to a member." };
+  }
+  await db.execute({ sql: "UPDATE users SET role = ? WHERE id = ?", args: [role, userId] });
+  return { ok: true };
+}
+
+export async function setActive(db: Client, actor: Pick<User, "id" | "is_demo">, userId: number, active: boolean): Promise<Result> {
+  const g = await guard(db, actor, userId);
+  if (!g.ok) return g;
+  await db.batch(
+    [
+      { sql: "UPDATE users SET active = ? WHERE id = ?", args: [active ? 1 : 0, userId] },
+      ...(active ? [] : [{ sql: "DELETE FROM sessions WHERE user_id = ?", args: [userId] }]),
+    ],
+    "write",
+  );
+  return { ok: true };
+}
+
+export { guard as canManage };

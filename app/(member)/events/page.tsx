@@ -1,23 +1,23 @@
-import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { getCtx } from "@/lib/context";
 import { upcomingEvents } from "@/lib/events";
-import { clubNow } from "@/lib/time";
 import EventCard from "@/components/EventCard";
 
 export default async function EventsPage() {
   const user = await requireUser();
-  const events = await upcomingEvents(await getDb(), user.id, clubNow());
+  const { db, now } = await getCtx();
+  const events = await upcomingEvents(db, user.id, now);
   const mine = events.filter((e) => e.mine);
   return (
     <>
       <div className="bar">
         <h1>Events</h1>
-        <p>Clinics, leagues and socials at the club</p>
+        <p>Shoots, socials and the yearly rodeo</p>
       </div>
       <div className="pad">
         {mine.length > 0 && (
           <>
-            <div className="lbl">You&apos;re going</div>
+            <div className="lbl">You&apos;re signed up</div>
             {mine.map((e) => <EventCard key={e.id} e={e} />)}
           </>
         )}

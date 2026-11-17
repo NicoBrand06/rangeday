@@ -1,64 +1,79 @@
 import Link from "next/link";
-import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { ACTIVITIES, CLUB_NAME } from "@/lib/club";
-import { availability, memberBookings } from "@/lib/booking";
+import { getCtx } from "@/lib/context";
+import { MODE_LABEL } from "@/lib/config";
+import { memberBookings } from "@/lib/booking";
+import { busyByArea, clubWide } from "@/lib/busy";
 import { upcomingEvents } from "@/lib/events";
-import { clubNow, greeting, prettyDate, prettyTime } from "@/lib/time";
-import EventCard from "@/components/EventCard";
+import { memberLessons } from "@/lib/lessons";
+import { greeting, prettyDate, prettyTime } from "@/lib/time";
+import AreaBusyList from "@/components/AreaBusyList";
 import BusyMeter from "@/components/BusyMeter";
-import { busyByHour } from "@/lib/busy";
+import EventCard from "@/components/EventCard";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
+  const sp = await searchParams;
   const user = await requireUser();
-  const now = clubNow();
-  const db = await getDb();
-  const { upcoming } = await memberBookings(db, user.id, now);
-  const next = upcoming[0];
-  const hours = await busyByHour(db, now.date);
-  const events = (await upcomingEvents(db, user.id, now)).filter((e) => !e.cancelled).slice(0, 2);
+  const { db, cfg, now } = await getCtx();
+  const [{ upcoming }, lessons, areas, events] = await Promise.all([
+    memberBookings(db, user.id, now),
+    memberLessons(db, user.id, now),
+    busyByArea(db, cfg, now.date, now),
+    upcomingEvents(db, user.id, now),
+  ]);
 
-  // Open slots left today for each activity, for the "Book something" cards.
-  const openToday = await Promise.all(
-    ACTIVITIES.map(async (a) => {
-      const slots = await availability(db, a.key, now.date, user.id, now);
-      return slots.filter((s) => s.status === "open" || s.status === "few").length;
-    }),
-  );
+  // The soonest of the member's bookings and lessons.
+  const next = [
+    ...upcoming.slice(0, 1).map((b) => ({ key: b.date + b.start_time, href: `/account/bookings/${b.id}`, title: b.station_name, date: b.date, time: b.start_time })),
+    ...lessons.upcoming.slice(0, 1).map((l) => ({ key: l.date + l.start_time, href: `/account/lessons/${l.id}`, title: `Lesson with ${l.instructor_name}`, date: l.date, time: l.start_time })),
+  ].sort((a, b) => a.key.localeCompare(b.key))[0];
+  const more = upcoming.length + lessons.upcoming.length - (next ? 1 : 0);
 
   return (
     <>
       <div className="bar">
         <h1>{greeting(now)}, {user.name.split(" ")[0]}</h1>
-        <p>{CLUB_NAME}</p>
+        <p>{cfg.clubName}</p>
       </div>
       <div className="pad">
+        {sp.welcome && <p className="note ok" role="status">Welcome to {cfg.clubName}! Your account is ready.</p>}
         <div className="lbl">Your next booking</div>
         {next ? (
-          <Link href={`/account/bookings/${next.id}`} className="card highlight">
-            <h3>{next.station_name} · {prettyDate(next.date)} {prettyTime(next.start_time)}</h3>
-            <p>{next.party_size === 1 ? "Just you" : `${next.party_size} shooters`}{upcoming.length > 1 ? ` · ${upcoming.length - 1} more upcoming` : ""}</p>
+          <Link href={next.href} className="card highlight">
+            <h3>{next.title} · {prettyDate(next.date)} {prettyTime(next.time)}</h3>
+            <p>{more > 0 ? `${more} more upcoming` : "Tap for details"}</p>
           </Link>
         ) : (
           <Link href="/book" className="card">
             <h3>Nothing booked yet</h3>
-            <p>Grab a slot in under a minute</p>
+            <p>Grab a slot or a lesson in under a minute</p>
           </Link>
         )}
 
         <div className="lbl">How busy is it today</div>
-        <BusyMeter hours={hours} now={now} />
+        <BusyMeter hours={clubWide(areas)} now={now} title="Whole club" basis="Bookings + check-ins" />
+        <AreaBusyList areas={areas} now={now} />
 
         <div className="lbl">Book something</div>
-        {ACTIVITIES.map((a, i) => (
+        {cfg.activities.filter((a) => a.active).map((a) => (
           <Link key={a.key} href={`/book?activity=${a.key}`} className="card">
             <h3>{a.label}</h3>
-            <p>{openToday[i] > 0 ? `${openToday[i]} open times left today` : "Fully booked or closed for today; see other days"}</p>
+            <p>
+              {a.mode === "walkaround"
+                ? "Walk-around: no booking needed, see how busy it is"
+                : a.mode === "shared"
+                  ? `${MODE_LABEL.shared}: up to ${a.perSlot} people per time`
+                  : "Book your own field"}
+            </p>
           </Link>
         ))}
+        <Link href="/book/lesson" className="card">
+          <h3>Book a lesson</h3>
+          <p>See which instructors are free and pick a time</p>
+        </Link>
 
         <div className="lbl">What&apos;s on</div>
-        {events.map((e) => <EventCard key={e.id} e={e} />)}
+        {events.filter((e) => !e.cancelled).slice(0, 2).map((e) => <EventCard key={e.id} e={e} />)}
         <Link href="/events" className="link-btn" style={{ display: "inline-block", marginTop: 6 }}>All events ›</Link>
       </div>
     </>
