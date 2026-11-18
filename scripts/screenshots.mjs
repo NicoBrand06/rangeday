@@ -107,6 +107,10 @@ await phone.click("form button.btn");
 await phone.waitForURL(/reserved=1/);
 await shot(phone, "09-reserved");
 
+// Let the shop know
+await phone.goto(`${base}/requests`);
+await shot(phone, "16-let-the-shop-know");
+
 // Staff screens
 await desk.goto(`${base}/staff`);
 await shot(desk, "10-staff-today", { fullPage: true });
@@ -122,6 +126,8 @@ await desk.goto(`${base}/staff/settings?tab=areas`);
 await shot(desk, "14-staff-settings-areas");
 await desk.goto(`${base}/staff/reservations`);
 await shot(desk, "15-staff-reservations");
+await desk.goto(`${base}/staff/requests?status=all`);
+await shot(desk, "17-staff-requests");
 
 // Put the demo back the way it was
 await resetDemo();

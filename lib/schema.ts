@@ -186,12 +186,34 @@ const V1 = [
   `CREATE INDEX lessons_by_instructor ON lessons (instructor_id, date)`,
 ];
 
-export const MIGRATIONS: string[][] = [V1];
+// Version 2: "Let the shop know", one-way requests and problem reports from members to staff.
+// Requests are a permanent log: the trigger refuses deletes, so patterns stay visible.
+const V2 = [
+  `CREATE TABLE shop_requests (
+     id INTEGER PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id),
+     activity TEXT NOT NULL,
+     type TEXT NOT NULL CHECK (type IN ('equipment','help','other')),
+     note TEXT NOT NULL CHECK (length(note) BETWEEN 1 AND 300),
+     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','done')),
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     started_by INTEGER REFERENCES users(id),
+     started_at TEXT,
+     done_by INTEGER REFERENCES users(id),
+     done_at TEXT
+   )`,
+  `CREATE INDEX shop_requests_by_status ON shop_requests (status, created_at)`,
+  `CREATE INDEX shop_requests_by_user ON shop_requests (user_id, created_at)`,
+  `CREATE TRIGGER shop_requests_keep BEFORE DELETE ON shop_requests
+   BEGIN SELECT RAISE(ABORT, 'Shop requests are a permanent log and cannot be deleted.'); END`,
+];
+
+export const MIGRATIONS: string[][] = [V1, V2];
 
 // Tables from the original prototype, which kept no version number.
 const PROTOTYPE_TABLES = ["reservations", "items", "rsvps", "events", "bookings", "stations", "users"];
 const ALL_TABLES = [
-  "lessons", "instructor_time_off", "instructor_hours", "instructors", "visits",
+  "shop_requests", "lessons", "instructor_time_off", "instructor_hours", "instructors", "visits",
   "reservations", "items", "rsvps", "events", "event_series", "bookings", "stations",
   "activities", "hours", "settings", "login_attempts", "sessions", "users",
 ];

@@ -46,6 +46,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
             <fieldset disabled={demoMode()} style={{ border: 0 }}>
               <label className="field"><span>Club name</span><input className="input" name="clubName" defaultValue={cfg.clubName} required maxLength={60} /></label>
               <label className="field"><span>Tagline</span><input className="input" name="tagline" defaultValue={cfg.tagline} maxLength={80} /></label>
+              <label className="field"><span>Pro shop phone (shown for urgent or safety issues)</span><input className="input" name="shopPhone" type="tel" defaultValue={cfg.shopPhone} required maxLength={25} /></label>
               <div className="row">
                 <label className="field" style={{ flex: 1 }}><span>Header colour</span><input type="color" name="primary" defaultValue={cfg.primary} className="input" style={{ padding: 4 }} /></label>
                 <label className="field" style={{ flex: 1 }}><span>Button colour</span><input type="color" name="accent" defaultValue={cfg.accent} className="input" style={{ padding: 4 }} /></label>
@@ -173,7 +174,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
               <label className="field" style={{ flex: "1 1 140px" }}><span>Area</span>
                 <select name="activity" className="input">{cfg.activities.filter((a) => a.mode === "slot").map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}</select>
               </label>
-              <label className="field" style={{ flex: "1 1 180px" }}><span>New field name</span><input name="name" className="input" placeholder="e.g. Trap, Field 3" required /></label>
+              <label className="field" style={{ flex: "1 1 180px" }}><span>New field name</span><input name="name" className="input" placeholder="e.g. Trap field 2" required /></label>
               <label className="field" style={{ width: 120 }}><span>Largest party</span><input name="capacity" type="number" min={1} max={20} defaultValue={5} className="input" /></label>
               <SubmitButton className="btn small" style={{ alignSelf: "flex-end" }}>+ Add field</SubmitButton>
             </form>

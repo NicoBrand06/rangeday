@@ -9,6 +9,7 @@ import { notify } from "@/lib/notify";
 import { setAttendance } from "@/lib/staff";
 import { staffUpdateReservation, type ReservationStatus } from "@/lib/shop";
 import { checkInVisit, recordWalkIn, undoCheckIn } from "@/lib/visits";
+import { setRequestStatus } from "@/lib/requests";
 
 // Every staff action starts with requireStaff(), so a member can't call these
 // even by crafting the request by hand.
@@ -89,4 +90,18 @@ export async function reservationAction(formData: FormData) {
   }
   const words: Record<string, string> = { confirmed: "Confirmed. The member now sees “Ready for pickup”.", declined: "Declined. The member sees your note.", picked_up: "Marked as picked up." };
   back("/staff/reservations", r.ok ? { msg: words[to] ?? "Updated." } : { error: r.error });
+}
+
+// ---- Member requests ("Let the shop know") ----
+
+export async function requestStatusAction(formData: FormData) {
+  const staff = await requireStaff();
+  const { db } = await getCtx();
+  const to = String(formData.get("to"));
+  const r = await setRequestStatus(db, Number(formData.get("id")), to, staff.id);
+  // Only ever go back to the requests page, whatever the form says.
+  const url = new URL(String(formData.get("back") || "/staff/requests"), "http://x");
+  const path = url.pathname === "/staff/requests" ? url.pathname : "/staff/requests";
+  const params = Object.fromEntries(url.searchParams);
+  back(path, r.ok ? { ...params, msg: to === "done" ? "Marked done. The member sees it in the app." : "Marked in progress. The member sees it in the app." } : { ...params, error: r.error });
 }

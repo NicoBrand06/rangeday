@@ -12,6 +12,7 @@ export type Activity = { key: string; label: string; mode: ActivityMode; perSlot
 export type Settings = {
   clubName: string;
   tagline: string;
+  shopPhone: string; // shown on "Let the shop know" for urgent or safety issues
   logo: string | null; // data: URL of an uploaded image
   primary: string; // header / navy colour
   accent: string; // button / green colour
@@ -29,6 +30,7 @@ export type ClubConfig = Settings & { hours: Hours[]; activities: Activity[] };
 export const DEFAULTS: Settings = {
   clubName: "Oak & Feather Ranch",
   tagline: "Members' sporting club",
+  shopPhone: "(555) 014-2290",
   logo: null,
   primary: "#1b2a41",
   accent: "#4a7a4c",

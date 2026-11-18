@@ -41,24 +41,28 @@ const book = (userId: number, name: string, partySize: number, time = "09:00") =
   createBooking(db, cfg, { userId, stationId: station[name], date: SAT, time, partySize }, NOW);
 
 describe("slot-booked (trap, skeet, 5-Stand)", () => {
+  it("the club has one field each for trap, skeet and 5-Stand", async () => {
+    const count = async (a: string) => (await availability(db, cfg, a, SAT, 3, NOW))[0].total;
+    expect([await count("trap"), await count("skeet"), await count("fivestand")]).toEqual([1, 1, 1]);
+  });
+
   it("gives each party its own field: a second party can't take the same field and time", async () => {
-    expect((await book(1, "Trap, Field 1", 2)).ok).toBe(true);
-    const r = await book(2, "Trap, Field 1", 1);
+    expect((await book(1, "Trap field", 2)).ok).toBe(true);
+    const r = await book(2, "Trap field", 1);
     expect(r.ok).toBe(false);
-    expect((await book(2, "Trap, Field 2", 1)).ok).toBe(true);
     const slot = (await availability(db, cfg, "trap", SAT, 3, NOW)).find((s) => s.time === "09:00")!;
     expect(slot.status).toBe("full");
     expect(slot.free).toHaveLength(0);
   });
 
   it("two members tapping Confirm on the same field at the same instant: only one gets it", async () => {
-    const results = await Promise.all([book(1, "Skeet, Field 1", 1), book(2, "Skeet, Field 1", 1)]);
+    const results = await Promise.all([book(1, "Skeet field", 1), book(2, "Skeet field", 1)]);
     expect(results.filter((r) => r.ok)).toHaveLength(1);
   });
 
   it("limits the party to the field's capacity", async () => {
-    expect((await book(1, "5-Stand, Field 1", 6)).ok).toBe(false);
-    expect((await book(1, "5-Stand, Field 1", 5)).ok).toBe(true);
+    expect((await book(1, "5-Stand field", 6)).ok).toBe(false);
+    expect((await book(1, "5-Stand field", 5)).ok).toBe(true);
   });
 });
 
@@ -160,13 +164,13 @@ describe("walk-around (sporting clays course)", () => {
 
 describe("busyness meter, per area", () => {
   it("measures each type its own way: fields, people out of the limit, people on the course", async () => {
-    await book(1, "Trap, Field 1", 1); // 1 of 2 trap fields at 9:00 -> 1 of 4 field-slots in the 9 am hour
+    await book(1, "Trap field", 1); // 1 field, booked at 9:00 but not 9:30 -> 1 of 2 field-slots in the 9 am hour
     await book(2, "Flat range", 5); // 5 of 5 at 9:00 -> 5 of 10 people-slots
     for (let u = 3; u <= 10; u++) await planVisit(db, cfg, { userId: u, activity: "clays", date: SAT, time: "09:00", partySize: 4 }, NOW); // 32 people
     const areas = await busyByArea(db, cfg, SAT, NOW);
     const area = (k: string) => areas.find((a) => a.activity === k)!.hours.find((h) => h.hour === 9)!;
-    expect(area("trap").pct).toBe(25);
-    expect(area("trap").level).toBe("quiet");
+    expect(area("trap").pct).toBe(50);
+    expect(area("trap").level).toBe("moderate");
     expect(area("flat").pct).toBe(50);
     expect(area("flat").level).toBe("moderate");
     expect(area("clays").booked).toBe(32);

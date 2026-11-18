@@ -26,12 +26,9 @@ const ACTIVITIES: [string, string, "slot" | "shared" | "walkaround", number | nu
 // [activity, name, most people in one party]
 const STATIONS: [string, string, number][] = [
   ["clays", "Sporting clays course (15 stations)", 5],
-  ["fivestand", "5-Stand, Field 1", 5],
-  ["fivestand", "5-Stand, Field 2", 5],
-  ["trap", "Trap, Field 1", 5],
-  ["trap", "Trap, Field 2", 5],
-  ["skeet", "Skeet, Field 1", 5],
-  ["skeet", "Skeet, Field 2", 5],
+  ["fivestand", "5-Stand field", 5],
+  ["trap", "Trap field", 5],
+  ["skeet", "Skeet field", 5],
   ["flat", "Flat range", 5],
   ["pond", "Fishing pond", 5],
   ["archery", "Archery range", 5],
@@ -111,7 +108,7 @@ export async function seedClub(db: Client, today: string) {
     },
     {
       sql: `INSERT INTO events (title,category,description,date,start_time,end_time,location,capacity)
-            VALUES ('Color Shoot','Social',?,?,'10:00','13:00','5-Stand, Fields 1 and 2',30)`,
+            VALUES ('Color Shoot','Social',?,?,'10:00','13:00','5-Stand',30)`,
       args: ["Bright coloured targets, team format and prizes for the best-dressed squad. Teams of three; sign up on your own and we'll match you.", nextWeekday(addDays(today, 18), 6)],
     },
   );
@@ -176,8 +173,8 @@ export async function seedDemo(db: Client, now = clubNow()) {
   // Sam's own bookings: 5-Stand on the next Saturday, and the flat range last week.
   const nextSat = nextWeekday(addDays(now.date, 1), 6);
   const samBookings = [
-    { station: 2, date: nextSat, time: "09:00", party: 3, status: "booked", shared: 0 },
-    { station: 8, date: addDays(now.date, -5), time: "10:00", party: 2, status: "checked_in", shared: 1 },
+    { station: 2, date: nextSat, time: "09:00", party: 3, status: "booked", shared: 0 }, // 5-Stand
+    { station: 5, date: addDays(now.date, -5), time: "10:00", party: 2, status: "checked_in", shared: 1 }, // flat range
   ];
   const taken = new Set(samBookings.map((b) => `${b.station}|${b.date}|${b.time}`));
   for (const b of samBookings) {
@@ -303,6 +300,28 @@ export async function seedDemo(db: Client, now = clubNow()) {
       args: [user, item, qty, status, note, `-${ago} hours`, status, changed, changed],
     });
   }
+  // "Let the shop know" requests: [member, area, type, note, status, hours ago]. Jordan (staff, id 2) handled the older ones.
+  const requests: [number, string, string, string, string, number][] = [
+    [1, "flat", "help", "Can someone unlock the flat range shed and bring out targets?", "in_progress", 1],
+    [14, "trap", "equipment", "Trap launcher is out of clays.", "open", 0.4],
+    [3, "archery", "equipment", "Target butt on lane 3 is coming apart at the back.", "open", 3],
+    [22, "clays", "equipment", "Station 9 trap is throwing short and low.", "open", 6],
+    [31, "pond", "other", "Dock rail on the east side is loose. Not urgent, just a heads-up.", "done", 30],
+    [1, "trap", "equipment", "Trap launcher jammed twice during my round.", "done", 50],
+    [40, "trap", "equipment", "Trap machine out of clays again.", "done", 75],
+    [9, "fivestand", "help", "Could we get an extra bucket of clays for the 2 pm group?", "done", 98],
+  ];
+  for (const [user, area, type, note, status, ago] of requests) {
+    const t = (h: number) => `-${Math.round(h * 60)} minutes`;
+    stmts.push({
+      sql: `INSERT INTO shop_requests (user_id,activity,type,note,status,created_at,started_by,started_at,done_by,done_at)
+            VALUES (?,?,?,?,?,datetime('now', ?),
+                    CASE WHEN ? != 'open' THEN 2 END, CASE WHEN ? != 'open' THEN datetime('now', ?) END,
+                    CASE WHEN ? = 'done' THEN 2 END, CASE WHEN ? = 'done' THEN datetime('now', ?) END)`,
+      args: [user, area, type, note, status, t(ago), status, status, t(ago * 0.8), status, status, t(ago * 0.6)],
+    });
+  }
+
   await chunked(db, stmts);
   await db.execute({ sql: "INSERT OR REPLACE INTO meta (key, value) VALUES ('demo_seeded_on', ?)", args: [now.date] });
 }

@@ -37,7 +37,7 @@ export default function EventForm({ id, e, minDate, inSeries, repeat }: { id?: n
           </select>
         </label>
       )}
-      <label className="field"><span>Location</span><input name="location" className="input" required defaultValue={e.location} placeholder="e.g. 5-Stand, Field 1" /></label>
+      <label className="field"><span>Location</span><input name="location" className="input" required defaultValue={e.location} placeholder="e.g. 5-Stand" /></label>
       <label className="field"><span>Description</span><textarea name="description" rows={4} className="input" defaultValue={e.description} /></label>
       {inSeries && (
         <fieldset className="field" style={{ border: 0 }}>

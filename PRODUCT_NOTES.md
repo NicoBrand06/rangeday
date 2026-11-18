@@ -102,7 +102,7 @@ The app stores `created_at` and `updated_at` on every reservation, so both are m
 
 **Decision.** An RSVP is added in a single database step that only succeeds if there's still room. Staff can't lower capacity below current RSVPs. A cancelled event stays visible, marked *Cancelled*, so members who RSVP'd notice.
 
-**Known gap.** Events don't block station bookings. A clinic on Skeet Field 2 doesn't stop members booking that field. It's on the roadmap. In a pilot, staff would book the station themselves to block it.
+**Known gap.** Events don't block station bookings. A clinic on the skeet field doesn't stop members booking it. It's on the roadmap. In a pilot, staff would book the station themselves to block it.
 
 ## 10. Demo login, not real auth
 
@@ -152,6 +152,8 @@ One model would either over-restrict the open areas or allow double-booking on t
 **Alternatives considered.**
 - *Make everything bookable with a big capacity.* Rejected: a "full" clays course isn't a real state, and members would book "just in case".
 - *Hard-code which areas behave how.* Rejected: every club is different, so the type is a setting.
+
+**The default club** has one field or space per area: one 5-Stand, one trap and one skeet field, one flat range, one fishing pond, one archery range, and the 15-station clays course. Staff can add more fields in Settings if a club has them; the booking rules already handle several fields per area (and are tested that way).
 
 **Tradeoff.** Three code paths and three explanations for members. Each area's booking screen says in one line how it works.
 
@@ -262,6 +264,29 @@ Under 35% is **Quiet**, 35–69% **Moderate** and 70% or more **Busy**, for ever
 ## 25. Why Turso stayed
 
 It was already a real hosted database with persistence across users and devices. Moving to Postgres would have meant a rewrite for no user-visible benefit at this scale. Numbered migrations now let the schema change without wipes.
+
+## 26. "Let the shop know": one-way requests, not chat
+
+**Decision.** Members can send short, non-urgent requests or problem reports to the pro shop ("Trap launcher is out of clays"). Each one has an area, a type (Equipment issue / Need help / Other) and a note of up to 300 characters. Staff work a queue and mark each request In progress, then Done. Members only see the status. There are no replies or threads.
+
+**Why.** Most of these messages are "please fix or fetch X" and need an action, not a conversation. Two-way chat would bring expectations of a fast answer, someone watching it all day, and moderation, which a small desk team can't promise. A phone call is still the channel for real conversations, and every urgent or safety issue goes there: the form opens with "Urgent or safety issue? Call the shop" and a tap-to-call number.
+
+**Choices made while building:**
+- **Where it lives.** A "Tell the shop" button sits in the top-right of every member screen's header and opens `/requests`. It started as a card on the Pro Shop tab, but that tab is for reserving gear, so the request form was hard to find there. It isn't a sixth tab either, because the bottom bar is already full at 360px.
+- **Shop phone setting.** A new club setting, edited next to the club name. It's locked on the public demo like the rest of the branding, so a visitor can't swap in another number.
+- **Status only moves forward.** Requests go Open → In progress → Done, or straight to Done. The update refuses anything else, so two staff tapping at once can't overwrite who handled it. The log records who started it and who finished it, with times.
+- **A permanent log.** A database trigger refuses deletes. Requests stay readable after a member deletes their account (it shows "Deleted member"). This lets staff spot patterns, such as "trap launcher out of clays" three times in a week. The queue shows a count per area for that reason.
+- **Spam limit.** A member can have at most 5 unfinished requests. The check and the save happen in one statement, so double taps can't get past it.
+- **Default staff view is "To do"** (Open plus In progress), newest first, with the full log one tap away. Filters for status and area live in the URL and stay set after you act on a row.
+- **Notifications.** None for now: no push, SMS or email. `lib/notify.ts` is still the single place to add them.
+
+**Left out on purpose:**
+- **Internal staff notes on a request.** They'd start to look like a reply.
+- **Photos.** They need file storage.
+- **A member phone number for callbacks.** Accounts don't store one yet; staff can look the member up on People.
+- **Reopening a Done request.** The member sends a new one instead, which keeps the pattern count honest.
+
+**Tradeoff.** Members get no direct answer, only a status. If "I asked and nobody told me why" turns up in feedback, the first thing to add is a short closing note, visible to the member, when staff mark a request Done. That still doesn't make it a chat.
 
 ---
 

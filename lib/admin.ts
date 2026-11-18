@@ -7,17 +7,33 @@ import { contrast, isHexColor, saveSettings, SLOT_MINUTES, textOn, toMinutes, ty
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MODES: ActivityMode[] = ["slot", "shared", "walkaround"];
+/** Loose check: digits plus common punctuation, 7 to 15 digits. */
+export function isPhone(s: string): boolean {
+  const digits = s.replace(/\D/g, "");
+  return /^[0-9+()\-.\s]{7,25}$/.test(s) && digits.length >= 7 && digits.length <= 15;
+}
+
+/** "(555) 014-2290" -> "tel:5550142290" */
+export function telHref(s: string): string {
+  return `tel:${s.replace(/[^0-9+]/g, "")}`;
+}
+
 export const MAX_LOGO_BYTES = 200 * 1024;
 
 export async function saveBranding(
   db: Client,
-  input: { clubName: string; tagline: string; primary: string; accent: string; logo?: string | null; removeLogo?: boolean },
+  input: { clubName: string; tagline: string; shopPhone?: string; primary: string; accent: string; logo?: string | null; removeLogo?: boolean },
 ): Promise<Result<{ warnings: string[] }>> {
   const clubName = input.clubName.trim();
   if (clubName.length < 2 || clubName.length > 60) return { ok: false, error: "Enter the club's name (up to 60 characters)." };
   if (input.tagline.trim().length > 80) return { ok: false, error: "Keep the tagline under 80 characters." };
   if (!isHexColor(input.primary) || !isHexColor(input.accent)) return { ok: false, error: "Pick both colours." };
   const values: Partial<Settings> = { clubName, tagline: input.tagline.trim(), primary: input.primary, accent: input.accent };
+  if (input.shopPhone !== undefined) {
+    const phone = input.shopPhone.trim();
+    if (!isPhone(phone)) return { ok: false, error: "Enter the shop's phone number, e.g. (555) 014-2290." };
+    values.shopPhone = phone;
+  }
   if (input.removeLogo) values.logo = null;
   else if (input.logo) values.logo = input.logo;
   await saveSettings(db, values);

@@ -105,7 +105,7 @@ async function Slots({ userId, areaKey, date, time, href }: { userId: number; ar
       </div>
       <div className="legend" aria-hidden>
         <span><i />Open</span>
-        <span><i style={{ borderColor: "var(--amber-border)", borderWidth: 2 }} />{shared ? "1–2 places left" : "1–2 fields left"}</span>
+        {(shared || (slots[0]?.total ?? 0) > 1) && <span><i style={{ borderColor: "var(--amber-border)", borderWidth: 2 }} />{shared ? "1–2 places left" : "1–2 fields left"}</span>}
         <span><i style={{ background: "var(--gl)" }} />Full</span>
       </div>
 
@@ -122,6 +122,8 @@ async function Slots({ userId, areaKey, date, time, href }: { userId: number; ar
                 <strong>{selected.people} of {selected.limit} booked</strong> at {prettyTime(selected.time)}. This is a shared area, so others may be there with you.
               </p>
             </>
+          ) : selected.free.length === 1 && selected.total === 1 ? (
+            <input type="hidden" name="station" value={selected.free[0].id} />
           ) : (
             <>
               <div className="lbl">Field</div>

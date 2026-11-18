@@ -17,6 +17,7 @@ export async function brandingAction(formData: FormData) {
   const r = await saveBranding((await getCtx()).db, {
     clubName: s(formData, "clubName"),
     tagline: s(formData, "tagline"),
+    shopPhone: s(formData, "shopPhone"),
     primary: s(formData, "primary"),
     accent: s(formData, "accent"),
     logo: logo.logo,

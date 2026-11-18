@@ -34,7 +34,7 @@ At the club (850 members, about 600 active), **everything runs through the front
 | Persona | Job to be done | What they get |
 |---|---|---|
 | **Sam, weekend member** | Lock in a Saturday slot or a lesson without calling | Book any time in a few taps; see how busy each area is; reserve shells before driving out |
-| **Jordan, front desk lead** | Keep the day running | App and phone bookings in one list, one-tap check-in, clays walk-in check-ins, lesson schedule, pickup queue |
+| **Jordan, front desk lead** | Keep the day running | App and phone bookings in one list, one-tap check-in, clays walk-in check-ins, lesson schedule, pickup queue, member request queue |
 | **Club manager** | Set the club up and measure it | Settings for hours, areas, policies, shop and branding; staff accounts; utilization and no-show tracking |
 
 ## What's in the beta
@@ -46,6 +46,7 @@ At the club (850 members, about 600 active), **everything runs through the front
 | **Busy meter, per area** | Hour by hour for every area and any day, measured the way that area is used: fields booked, people out of the limit, or people on the course. |
 | **Events** | Repeating events (*Sunset Clays* weekly, *Members Shoot* first Saturday monthly, the yearly *Rodeo*) plus one-offs like the *Color Shoot*. RSVP with a **waitlist** when full: when someone cancels or staff add places, the next person moves up automatically. Staff see the Going and Waitlist lists. |
 | **Reserve for pickup** | Reserve an item; staff confirm or decline with a note. Requests expire after X days if unanswered, and holds X days after confirmation (default 3). No stock count, no payment. |
+| **Let the shop know** | From the **Tell the shop** button at the top of every screen, members send non-urgent requests or problem reports to the pro shop (*"Trap launcher is out of clays"*): pick an area and a type, and write a short note. An "Urgent or safety issue? Call the shop" line comes first. Staff work a queue filtered by status and area, and mark requests In progress or Done. Who handled each one, and when, is saved. It's one-way, with no chat, and every request is kept as a permanent log for spotting patterns. |
 | **Accounts** | Email and password sign-up, log in and out, change password, delete account. Staff role, with every staff page *and* action checked on the server. |
 | **Club settings** | One admin page for club name, logo, colours, opening hours, areas and booking types, fields, pro shop items and policies. Nothing is hard-coded. |
 | **Staff desk** | Today's bookings (app and phone), check-in and no-shows, clays check-ins, phone bookings under the same rules, the lesson schedule, events, the pickup queue and a People page. |
@@ -58,6 +59,10 @@ At the club (850 members, about 600 active), **everything runs through the front
 </p>
 <img src="docs/screenshots/12-staff-instructor.png" width="820" alt="Staff: instructor weekly availability and days off">
 <img src="docs/screenshots/14-staff-settings-areas.png" width="820" alt="Staff settings: areas and their booking types">
+<p>
+  <img src="docs/screenshots/16-let-the-shop-know.png" width="200" alt="Let the shop know: call line for urgent issues, request form, and My requests with status">
+</p>
+<img src="docs/screenshots/17-staff-requests.png" width="820" alt="Staff request queue filtered by status and area, with who handled each request">
 
 ## Later (deliberately out of scope)
 
@@ -69,6 +74,7 @@ At the club (850 members, about 600 active), **everything runs through the front
 | **Email verification and self-serve password reset** | They need email. For now, staff can issue a one-time temporary password from the People page. |
 | **Lessons and events reserving a field** | A trap lesson doesn't yet block a trap field. Staff can book the field alongside. |
 | **Waitlists for fields** | Events have waitlists; fields don't yet. Full times point members to other times and areas. |
+| **Replies, photos or notifications on shop requests** | Requests are one-way by design (a status, not a chat). A short closing note from staff is the first thing to add if members want one. |
 | Guest e-waivers, QR self check-in, reminders, weather alerts, live desk updates, reporting | Next on the roadmap in the case study. |
 
 ## Success metrics
@@ -97,7 +103,7 @@ The first page load creates a local SQLite database (`rangeday.db`). Locally the
 | Command | What it does |
 |---|---|
 | `npm run dev` | Run the app locally |
-| `npm test` | Run the 79 rule tests |
+| `npm test` | Run the 92 rule tests |
 | `npm run reset-db` | Delete the local database; it's rebuilt on the next page load |
 | `npm run screenshots` | Retake the README screenshots (app must be running) |
 
@@ -127,6 +133,7 @@ The first page load creates a local SQLite database (`rangeday.db`). Locally the
 - `busy.ts`
 - `events.ts`
 - `shop.ts`
+- `requests.ts` (Let the shop know)
 - `accounts.ts`
 - `staff.ts`
 - `admin.ts` (settings)
@@ -140,8 +147,8 @@ Screens ask "can this happen?" and show the answer in plain English.
 Tests fire simultaneous requests at each one and check that the limit holds.
 
 ```
-app/(member)/   member screens: home, book (fields, shared, walk-around, lessons), events, shop, account
-app/staff/      staff desk: today, lessons and instructors, events, reservations, people, settings
+app/(member)/   member screens: home, book (fields, shared, walk-around, lessons), events, shop (+ Let the shop know), account
+app/staff/      staff desk: today, lessons and instructors, events, reservations, requests, people, settings
 app/login, app/signup
 lib/            business rules, data model, migrations, starting data
 tests/          rule tests

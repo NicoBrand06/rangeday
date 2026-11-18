@@ -156,7 +156,7 @@ a.card:hover { border-color: var(--navy2); }
 .kpi b.alert { color: var(--red); }
 .panel { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
 .panel h2 { font-size: 1rem; color: var(--navy); margin-bottom: 10px; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; position: relative; } /* keeps .sr-only labels inside the scroll box */
 table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
 th { background: var(--navy2); color: #fff; text-align: left; padding: 8px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
 td { border-bottom: 1px solid var(--gl); padding: 8px; vertical-align: middle; }
@@ -185,3 +185,19 @@ ul.card .item:last-child { border-bottom: 0; }
 .skeleton { background: linear-gradient(90deg, var(--gl) 25%, #e8ebf0 50%, var(--gl) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-color: transparent; color: transparent; border-radius: 8px; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+/* Let the shop know */
+.card.urgent { border-color: var(--red); background: var(--redl); }
+.card.urgent h3 { color: var(--red); }
+.card.urgent p { color: var(--ink, #1a1a1a); }
+.radio-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; cursor: pointer; }
+.radio-chip:has(input:checked) { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.radio-chip input { accent-color: var(--green); }
+.count-low { color: var(--red); font-weight: 700; }
+/* Top ribbon on every member screen: club name, and "Tell the shop" for requests and problem reports */
+.topstrip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--navy); color: var(--on-navy); padding: 10px 16px 0; }
+.topstrip .club { flex: 1; min-width: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; overflow-wrap: anywhere; }
+.topstrip + .bar { padding-top: 10px; }
+.tell-shop { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 5px 12px; margin-left: auto; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--on-navy) 45%, transparent); color: var(--on-navy); background: color-mix(in srgb, var(--on-navy) 10%, transparent); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.tell-shop:hover, .tell-shop[aria-current="page"] { background: color-mix(in srgb, var(--on-navy) 22%, transparent); }
+.tell-shop svg { flex: none; }

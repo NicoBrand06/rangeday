@@ -8,6 +8,7 @@ import { lessonSchedule } from "@/lib/lessons";
 import { bookingsOn, dayStats, members, type DeskBooking } from "@/lib/staff";
 import { openReservations } from "@/lib/shop";
 import { visitsOn } from "@/lib/visits";
+import { requestCounts } from "@/lib/requests";
 import { addDays, prettyDate, prettyTime } from "@/lib/time";
 import AreaBusyList from "@/components/AreaBusyList";
 import BusyMeter from "@/components/BusyMeter";
@@ -40,7 +41,7 @@ export default async function StaffToday({ searchParams }: { searchParams: Promi
   const { db, cfg, now } = await getCtx();
   const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : now.date;
   const walkaround = cfg.activities.filter((a) => a.active && a.mode === "walkaround");
-  const [rows, areas, memberList, stations, pending, lessons, visits] = await Promise.all([
+  const [rows, areas, memberList, stations, pending, lessons, visits, requests] = await Promise.all([
     bookingsOn(db, date),
     busyByArea(db, cfg, date, now),
     members(db),
@@ -50,6 +51,7 @@ export default async function StaffToday({ searchParams }: { searchParams: Promi
     openReservations(db, cfg).then((r) => r.filter((x) => x.status === "pending")),
     lessonSchedule(db, date, date).then((l) => l.filter((x) => x.status === "booked")),
     walkaround.length ? visitsOn(db, date, walkaround[0].key) : Promise.resolve([]),
+    requestCounts(db).then((c) => c.byStatus),
   ]);
   const stats = dayStats(rows, now, date);
   const club = clubWide(areas);
@@ -217,6 +219,11 @@ export default async function StaffToday({ searchParams }: { searchParams: Promi
           <Link href="/staff/reservations" className="panel" style={{ display: "block" }}>
             <h2>Pro shop reservations</h2>
             <p className="muted">{pending.length ? `${pending.length} waiting for you to confirm or decline ›` : "Nothing waiting. Nice."}</p>
+          </Link>
+
+          <Link href="/staff/requests" className="panel" style={{ display: "block" }}>
+            <h2>Member requests</h2>
+            <p className="muted">{requests.open ? `${requests.open} open${requests.in_progress ? `, ${requests.in_progress} in progress` : ""} ›` : requests.in_progress ? `${requests.in_progress} in progress ›` : "Nothing waiting. Nice."}</p>
           </Link>
 
           <section className="panel">

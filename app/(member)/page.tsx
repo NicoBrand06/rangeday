@@ -33,7 +33,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     <>
       <div className="bar">
         <h1>{greeting(now)}, {user.name.split(" ")[0]}</h1>
-        <p>{cfg.clubName}</p>
+        {cfg.tagline && <p>{cfg.tagline}</p>}
       </div>
       <div className="pad">
         {sp.welcome && <p className="note ok" role="status">Welcome to {cfg.clubName}! Your account is ready.</p>}
